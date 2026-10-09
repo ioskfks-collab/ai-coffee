@@ -1,0 +1,28 @@
+// 서비스 워커: 앱 셸 미리 캐시 + 같은 출처 GET만 캐시 우선. 외부 요청 없음.
+// 매장 DB(data/aicoffee-db-r2.txt.gz)는 앱이 처음 한 번 받아 'aic-db-*' 캐시에 넣음(중복 다운로드 방지).
+const SHELL = 'aic-shell-beta-1.7-r2'; // Web Beta 1.7 (이전 셸 캐시 이름들과 모두 다름 → 기존 클라이언트 갱신)
+const DB_CACHE = 'aic-db-2026-06-30-v2'; // Beta 1.7: DB 파일에 시군구 중심점 섹션 추가(data/aicoffee-db-r2.txt.gz)
+const ASSETS = ['./', 'index.html', 'styles.css', 'js/main.js', 'js/app.js', 'js/core.js', 'js/icons.js', 'manifest.webmanifest',
+  'fonts/nanum_square_round_r.otf', 'fonts/nanum_square_round_b.otf', 'fonts/nanum_square_round_eb.otf',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'licenses/OFL-NanumSquareRound.txt'];
+self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== SHELL && k !== DB_CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', e => {
+  const req = e.request; const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  const isNav = req.mode === 'navigate';
+  e.respondWith((async () => {
+    const hit = await caches.match(isNav ? 'index.html' : req, { ignoreSearch: true });
+    if (hit) return hit;
+    try {
+      const res = await fetch(req);
+      if (res.ok && !url.pathname.endsWith('.gz')) { const c = await caches.open(SHELL); c.put(req, res.clone()); }
+      return res;
+    } catch (err) {
+      if (isNav) { const idx = await caches.match('index.html'); if (idx) return idx; }
+      throw err;
+    }
+  })());
+});

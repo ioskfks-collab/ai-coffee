@@ -1,0 +1,17 @@
+{
+  "name": "AI Coffee",
+  "short_name": "AI Coffee",
+  "description": "내 주변 1km 카페 메뉴판 가격 비교 (Web Beta 1.7)",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF5EE",
+  "theme_color": "#FAF5EE",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
