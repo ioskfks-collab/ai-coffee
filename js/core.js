@@ -1,4 +1,4 @@
-// AI Coffee Web Beta 1.7 — 순수 로직(DOM 없음). Android 1.7 data/*.kt, domain/*.kt를 그대로 옮김.
+// AI Coffee Web Beta 1.8 — 순수 로직(DOM 없음). Android Beta 1.8 data/*.kt, domain/*.kt를 그대로 옮김.
 // 위치 좌표는 인자로만 받고 저장·전송·로그하지 않음.
 
 // ---------- CSV (Csv.kt) ----------
@@ -181,7 +181,13 @@ export const Geo = {
     return out;
   },
   distText: d => d >= 1000 ? `약 ${(d / 1000).toFixed(1)}km` : `약 ${Math.max(10, Math.round(d / 10) * 10)}m`,
-  walkText: d => `도보 약 ${Math.max(1, Math.round(d / 67))}분(직선거리 추정)`,
+  /** Beta 1.8 도보 시간: 직선거리 원값 / 분당 67m → 올림, 최소 1분(Android Geo.walkMin과 같음) */
+  WALK_M_PER_MIN: 67,
+  walkMin: d => Math.max(1, Math.ceil(d / 67)),
+  walkText: d => `도보 ${Geo.walkMin(d)}분(추정)`,
+  /** 카드·상세 거리: '약' 없이(예: 320m · 도보 5분(추정)) */
+  distPlain: d => Geo.distText(d).replace(/^약 /, ''),
+  distWalk: d => `${Geo.distPlain(d)} · ${Geo.walkText(d)}`,
 };
 
 // ---------- Engine.kt ----------
@@ -376,6 +382,18 @@ export const MapLinks = {
   url(id, dest, name) { return id === 'naver' ? MapLinks.naver(dest, name) : id === 'kakao' ? MapLinks.kakao(dest) : id === 'tmap' ? MapLinks.tmap(dest, name) : id === 'google' ? MapLinks.google(dest) : MapLinks.apple(dest, name); },
   /** 순서(Android MapLinks.sheet와 같음): 지난번 선택 → 네이버·카카오·TMAP·Google → Apple(=Android '다른 지도 앱' 자리) */
   sheet(last) { const l = MapApps.find(a => a.id === last); return l ? [l, ...MapApps.filter(a => a !== l)] : MapApps.slice(); },
+  // ---- Beta 1.8 [영업시간·후기 보기] 탭: 네이버·카카오만. 검색어 = 매장명 + 주소(DB 값), 카카오는 매장 좌표 p만. 사용자 위치는 받지 않음 ----
+  HOURS_APPS: ['naver', 'kakao'], HOURS_HINT: '검색',
+  hoursQuery: (name, addr) => `${name ?? ''} ${addr ?? ''}`.trim(),
+  naverSearch(name, addr) { return `nmap://search?query=${MapLinks.enc(MapLinks.hoursQuery(name, addr))}&appname=${MapLinks.APPNAME}`; },
+  kakaoSearch(name, addr, store) { return `kakaomap://search?q=${MapLinks.enc(MapLinks.hoursQuery(name, addr))}&p=${MapLinks.ll(store)}`; },
+  hoursUrl(id, name, addr, store) {
+    if (id === 'naver') return MapLinks.naverSearch(name, addr);
+    if (id === 'kakao') return MapLinks.kakaoSearch(name, addr, store);
+    throw new Error('영업시간 탭은 네이버·카카오만 지원해요');
+  },
+  /** 두 탭이 같은 '지난번 선택'을 씀. 지난번이 네이버·카카오면 맨 위, 아니면(TMAP 등) 네이버 → 카카오 */
+  hoursSheet(last) { const base = MapApps.filter(a => MapLinks.HOURS_APPS.includes(a.id)); const l = base.find(a => a.id === last); return l ? [l, ...base.filter(a => a !== l)] : base; },
 };
 
 // ---------- 번들 파싱 ----------
@@ -402,3 +420,51 @@ export const Regions = {
   sidos(all) { return [...new Set(all.map(r => r.sido))]; },
   of(all, sido) { return all.filter(r => r.sido === sido); },
 };
+
+// ---------- Beta 1.8 매장 id 변환(DB r2 → r3). Android data/IdMigration.kt와 같은 규칙 ----------
+export const ID_VER = 3;
+/** 압축 변환표(지운 행 목록): 남은 행은 old − (old보다 작은 지운 행 수), 중복으로 합쳐진 행은 남긴 행의 새 id, 비커피 행은 없음(null) */
+export function parseIdMap(text) {
+  const lines = text.split('\n'); const h = lines[0].split('|');
+  if (h[0] !== '#AICIDMAP' || h[1] !== 'r2' || h[3] !== 'r3') throw new Error('id 변환표 형식 오류');
+  const oldSize = +h[2], newSize = +h[4]; const removed = [], target = new Map();
+  for (const l of lines.slice(1)) { if (!l) continue; const [a, b] = l.split(','); const o = +a; removed.push(o); if (b !== '' && b != null) target.set(o, +b); }
+  removed.sort((x, y) => x - y); const rmSet = new Set(removed);
+  const below = o => { let lo = 0, hi = removed.length; while (lo < hi) { const m = (lo + hi) >> 1; if (removed[m] < o) lo = m + 1; else hi = m; } return lo; };
+  const map = old => {
+    let o = old;
+    for (let k = 0; k < 8; k++) {
+      if (!Number.isInteger(o) || o < 0 || o >= oldSize) return null;
+      if (!rmSet.has(o)) { const n = o - below(o); return n >= 0 && n < newSize ? n : null; }
+      if (!target.has(o)) return null; o = target.get(o);
+    }
+    return null;
+  };
+  return { oldSize, newSize, map, merged: o => target.has(o) };
+}
+/** 1.7 저장값(o)의 즐겨찾기·내 별점·제출함 매장 id를 새 id로. 변환표에 없는 id는 조용히 버림. o를 바꾸지 않고 새 객체 반환 */
+export function migrateIds(o, idMap) {
+  if ((+o.dbIdVer || 0) >= ID_VER) return { o, stats: null };
+  const hasData = (Array.isArray(o.favs) && o.favs.length) || (o.myRatings && typeof o.myRatings === 'object' && Object.keys(o.myRatings).length) || (Array.isArray(o.outbox) && o.outbox.length);
+  if (!hasData) return { o: { ...o, dbIdVer: ID_VER }, stats: null };
+  const M = idMap(); const num = v => (typeof v === 'number' ? v : typeof v === 'string' && /^-?\d+$/.test(v) ? +v : NaN);
+  const favIn = Array.isArray(o.favs) ? o.favs : []; const favs = [];
+  for (const v of favIn) { const n = M.map(num(v)); if (n != null && !favs.includes(n)) favs.push(n); }
+  const rIn = o.myRatings && typeof o.myRatings === 'object' ? o.myRatings : {}; const rOut = {}; const from = {};
+  for (const k of Object.keys(rIn)) {
+    const r = rIn[k]; if (!r || typeof r !== 'object') continue; const old = num(k); const n = M.map(old); if (n == null) continue;
+    const prev = rOut[n];
+    if (prev) { const a = String(r.date || ''), b = String(prev.date || ''); if (a < b || (a === b && M.merged(old) && !M.merged(from[n]))) continue; }
+    rOut[n] = r; from[n] = old;
+  }
+  const obIn = Array.isArray(o.outbox) ? o.outbox : []; const outbox = [];
+  for (const r of obIn) {
+    if (!r || typeof r !== 'object') continue;
+    if (!('store' in r)) { outbox.push(r); continue; }
+    const st = num(r.store); if (Number.isNaN(st)) continue;
+    if (st < 0) { outbox.push(r); continue; } // 매장과 무관한 기록(store -1)은 그대로
+    const n = M.map(st); if (n == null) continue; outbox.push({ ...r, store: n });
+  }
+  return { o: { ...o, favs, myRatings: rOut, outbox, dbIdVer: ID_VER },
+    stats: { favs: [favIn.length, favs.length], ratings: [Object.keys(rIn).length, Object.keys(rOut).length], outbox: [obIn.length, outbox.length] } };
+}

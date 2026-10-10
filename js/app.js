@@ -1,10 +1,11 @@
-// AI Coffee Web Beta 1.7 — 화면·상태. Android 1.7 ui/screens/*.kt, AppViewModel.kt, MainActivity.kt를 옮김.
+// AI Coffee Web Beta 1.8 — 화면·상태. Android Beta 1.8 ui/screens/*.kt, AppViewModel.kt, MainActivity.kt를 옮김.
 // 위치 좌표는 S.loc(메모리)에만 두고 저장·전송·console 출력하지 않음.
-import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radius, F, LBL, Reasons, Presets, PRESET_ORDER, Engine, SubmitRules, MapLinks, defaultFilter, defaultInc } from './core.js';
+import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radius, F, LBL, Reasons, Presets, PRESET_ORDER, Engine, SubmitRules, MapLinks, defaultFilter, defaultInc, parseIdMap, migrateIds, ID_VER } from './core.js';
 import { I } from './icons.js';
+import { ID_MAP_R2_R3 } from './idmap.js';
 
-export const VERSION = '1.7';
-const DB_URL = 'data/aicoffee-db-r2.txt.gz', DB_CACHE = 'aic-db-2026-06-30-v2', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
+export const VERSION = '1.8';
+const DB_URL = 'data/aicoffee-db-r3.txt.gz', DB_CACHE = 'aic-db-2026-06-30-r3', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
 const S = { loaded: false, ready: false, dbError: null, consent: {}, loc: null, locStatus: 'idle', locErr: null,
@@ -16,20 +17,29 @@ const UI = { route: 'near', sheet: null, toast: null };
 const ref = () => S.loc || (S.area ? { lat: S.area.lat, lng: S.area.lng, acc: null } : null);
 const manual = () => !S.loc && !!S.area;
 export const MANUAL_AREA_NOTE = '선택한 지역의 중심 기준이라 실제 거리와 다를 수 있어요';
+// Beta 1.8 지도 앱 시트 문구(ui-1.8-map-app-sheet.md 그대로)
+export const HOURS_ROW = '영업시간·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·후기 보기';
+export const HOURS_NOTE = '네이버·카카오에서 검색 결과로 열려요. 주소로 매장을 확인해 주세요.', HOURS_SOURCE = '영업시간·후기는 네이버·카카오 기준이에요.';
+export const HOURS_NOT_INSTALLED = '네이버 지도나 카카오맵이 설치되어 있지 않아요.';
 const locOK = () => S.consent.age === '14+' && S.consent.loc === 'agree';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 function persist() { // 좌표는 저장하지 않음
-  const o = { did, consent: S.consent, filter: S.filter, preset: S.preset, mapApp: S.mapApp || '', favs: S.favs, myRatings: S.myRatings, outbox: S.outbox };
+  const o = { did, consent: S.consent, filter: S.filter, preset: S.preset, mapApp: S.mapApp || '', favs: S.favs, myRatings: S.myRatings, outbox: S.outbox, dbIdVer };
   try { localStorage.setItem(LS, JSON.stringify(o)); } catch { /* 저장 불가(사파리 개인 정보 보호 모드 등) */ }
 }
+// ---------- Beta 1.8 매장 id 변환(DB r2 → r3): 업데이트 후 한 번만, 완료 표시 dbIdVer=3 저장 ----------
+let dbIdVer = 0;
 function restore() {
   let o = {}; try { o = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { o = {}; }
+  if (typeof o !== 'object' || Array.isArray(o)) o = {};
+  try { o = migrateIds(o, () => parseIdMap(ID_MAP_R2_R3)).o; dbIdVer = ID_VER; }
+  catch { dbIdVer = +o.dbIdVer || 0; /* 변환 실패: 원래 값 유지, 완료 표시 안 함 → 다음 실행에 다시 시도 */ }
   did = o.did || Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
   S.consent = o.consent || {};
   const f = o.filter; if (f && typeof f === 'object') S.filter = { ...defaultFilter(), ...f, brands: Array.isArray(f.brands) ? f.brands : [] };
   if (Presets[o.preset]) S.preset = o.preset;
-  S.favs = Array.isArray(o.favs) ? o.favs : []; S.myRatings = o.myRatings || {}; S.outbox = Array.isArray(o.outbox) ? o.outbox : []; S.mapApp = o.mapApp || null;
+  S.favs = Array.isArray(o.favs) ? o.favs.filter(Number.isInteger) : []; S.myRatings = o.myRatings && typeof o.myRatings === 'object' ? o.myRatings : {}; S.outbox = Array.isArray(o.outbox) ? o.outbox : []; S.mapApp = o.mapApp || null;
   S.loaded = true; persist();
 }
 function mut(fn) { fn(); persist(); render(); }
@@ -169,12 +179,21 @@ const ratingInline = t => t.enough ? `<span class="rating" aria-label="이용자
 const noPriceText = e => { const ss = e.ss; return ss?.pending ? '가격 확인 중' : ss?.missing ? '가격 미입력' : ss?.notSold ? '판매 메뉴 아님' : '가격 정보 없음'; };
 const cardVolume = e => { const s = e.size; if (!s) return null; const a = [s.ml != null ? MenuTable.mlText(s) : null, s.src.startsWith('이용자') ? '제보 가격' : null].filter(Boolean); return a.length ? a.join(' · ') : null; };
 
+/** 카드 3번째 줄(Beta 1.8): [별점] · [1km 밖] · 320m · 도보 5분(추정). 줄바꿈은 항목 사이에서만('·'는 앞 줄에 남고 '도보 n분(추정)'은 통째로 다음 줄) */
+function cardMeta(e, showR, outside) {
+  const hasD = e.d != null; const items = [];
+  if (showR) items.push(ratingInline(e.t));
+  if (outside) items.push('<span class="sub">1km 밖</span>');
+  if (hasD) { items.push(`<span class="dist numtxt">${Geo.distPlain(e.d)}</span>`); items.push(`<span class="walk sub">${Geo.walkText(e.d)}</span>`); }
+  if (!items.length) return '';
+  return `<div class="l3 meta">${items.map((x, k) => k < items.length - 1 ? `<span class="mi">${x}<span class="sep">&nbsp;·</span></span> ` : `<span class="mi">${x}</span>`).join('')}</div>`;
+}
 function storeCard(e, n, outside) {
   const db = EN.db; const s = e.size; const showR = e.t.enough;
   return `<div class="card" role="button" tabindex="0" data-a="${act(() => go('store/' + e.i))}">
-    <div class="body"><div class="l1">${n > 0 ? `<span class="rank">${n}</span>` : ''}<span class="name">${esc(db.name[e.i])}</span><span class="dist numtxt">${Geo.distText(e.d)}</span></div>
+    <div class="body"><div class="l1">${n > 0 ? `<span class="rank">${n}</span>` : ''}<span class="name">${esc(db.name[e.i])}</span></div>
     <div class="l2">${s ? `<span class="price">${won(s.p)}</span>${cardVolume(e) ? `<span class="sub">${esc(cardVolume(e))}</span>` : ''}` : `<span class="noprice">${noPriceText(e)}</span>`}</div>
-    ${showR || outside ? `<div class="l3">${showR ? ratingInline(e.t) : ''}${outside ? `<span class="sub">${showR ? '&nbsp;· ' : ''}1km 밖 · ${Geo.walkText(e.d)}</span>` : ''}</div>` : ''}</div>
+    ${cardMeta(e, showR, outside)}</div>
     <button class="diricon" aria-label="길찾기" data-a="${act(() => openSheet({ type: 'map', i: e.i }))}"><span>${I.nav}</span></button></div>`;
 }
 
@@ -291,8 +310,8 @@ function StoreScreen(i) {
   const db = EN.db; const R0 = ref(); const d = R0 ? Geo.dist(db, i, R0) : null; const t = EN.taste(i); const mk = S.filter.menu;
   const cmp = k => () => { A.setFilter({ ...S.filter, menu: k }); go('compare'); };
   let b = `<h2 class="title" style="padding-top:6px;white-space:normal">${esc(db.name[i])}</h2>
-    <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distText(d) : '위치 미정'}</span>${d != null ? ' · ' + Geo.walkText(d) : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
-    <p>주소: ${esc(db.addr[i])}</p><p class="c2">영업시간: 영업시간 정보 없음</p>
+    <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distPlain(d) : '위치 미정'}</span>${d != null ? ' · <span class="nowrap">' + Geo.walkText(d) + '</span>' : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
+    <p>주소: ${esc(db.addr[i])}</p>
     <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + h3('메뉴 가격');
   if (db.isFr(i)) {
     const br = db.brandName(i);
@@ -329,7 +348,8 @@ function StoreScreen(i) {
   fold += `<hr style="margin:6px 0">` + [EX_PRICE_NOTICE, ...DATA_NOTICE].map(x => `<p style="padding:2px 0">· ${esc(x)}</p>`).join('')
     + `<p style="padding:2px 0">· 길 안내: 설치된 지도 앱으로 이동 · 매장 위치만 전달하고 내 위치 좌표는 보내지 않아요</p><p style="padding:2px 0">· 매장 정보 출처: 소상공인시장진흥공단 상가(상권)정보(기준일 ${db.dbDate}) · 등록된 브랜드·카페와 제휴 관계가 없어요</p>`;
   const open = !!UI.fold;
-  b += `<div style="height:8px"></div><div class="fold"><hr><button aria-expanded="${open}" data-a="${act(() => { UI.fold = !UI.fold; render(); })}"><span>출처·안내 · 추천 점수</span>${open ? I.up : I.down}</button>${open ? `<div class="content">${fold}</div>` : ''}</div>`;
+  b += `<div style="height:4px"></div><hr>` + `<button class="listrow hoursrow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'hours' }))}"><span>${HOURS_ROW}</span></button>`;
+  b += `<div class="fold"><hr><button aria-expanded="${open}" data-a="${act(() => { UI.fold = !UI.fold; render(); })}"><span>출처·안내 · 추천 점수</span>${open ? I.up : I.down}</button>${open ? `<div class="content">${fold}</div>` : ''}</div>`;
   b += '<hr>' + listRow('정보 제보·신고', () => openSheet({ type: 'report', i }));
   return h + `<div class="scroll" data-keep="store">${b}</div><div class="cta">${btn('지도 앱으로 길찾기', () => openSheet({ type: 'map', i }), 'pri')}</div>` + ad();
 }
@@ -379,7 +399,7 @@ function FavScreen() {
   if (!S.favs.length) b = `<div class="empty">${emptyCup()}<p class="b" style="margin-top:8px">즐겨찾기한 매장이 없어요. 매장 상세에서 ☆를 눌러 추가할 수 있어요.</p></div>`;
   else if (!EN) b = '<p>불러오는 중…</p>';
   else b = S.favs.filter(i => i < EN.db.size).map(i => {
-    const R0 = ref(); const d = R0 ? Geo.dist(EN.db, i, R0) : 0; const f0 = { ...defaultFilter(), menu: S.filter.menu };
+    const R0 = ref(); const d = R0 ? Geo.dist(EN.db, i, R0) : null; /* 기준 위치가 없으면 거리·도보 표시 안 함 */ const f0 = { ...defaultFilter(), menu: S.filter.menu };
     const e = { ...(EN.evalStore(i, f0) || { i, size: null, ss: EN.storeSizes(i, f0.menu), reason: null, t: EN.taste(i) }), d };
     return storeCard(e, 0, R0 != null && d > Radius.SEARCH_M);
   }).join('');
@@ -558,10 +578,12 @@ function sheetContent() {
   if (sh.type === 'report') return { body: `<div class="sc">${h2('정보 제보·신고')}${listRow('가격 제보 (이 매장에서 본 메뉴판 가격)', () => go(`price/${sh.i}`))}<hr>${listRow('별점·제보 신고 / 이의제기', () => go(`report/${sh.i}/c`))}<hr>${listRow('정보 오류 제보 (폐점·이전, 메뉴·가격·용량 오류)', () => go(`report/${sh.i}/x`))}${sheetBtns()}</div>` };
   if (sh.type === 'rate') return { body: `<div class="sc">${rateContent(sh.i, true, sh)}</div>`, full: true };
   if (sh.type === 'map') {
-    const nm = EN.db.name[sh.i]; const apps = MapLinks.sheet(S.mapApp);
-    return { body: `<div class="sc">${h2('길찾기 · ' + nm)}${sub('고른 지도 앱으로 이동해요. 매장 위치(목적지)만 전달하고 내 위치 좌표는 보내지 않아요. 출발지는 지도 앱이 현재 위치로 정해요.')}<div style="height:6px"></div>
-      ${apps.map((a, n) => `${n > 0 ? '<hr>' : ''}<button class="maprow" data-a="${act(() => launchMap(a.id, sh.i))}"><span class="ic">${I.nav}</span><span class="lb">${a.label}</span>${a.id === S.mapApp ? badge('지난번 선택') : ''}<span class="numtxt">&nbsp;&nbsp;${a.hint} ›</span></button>`).join('')}
-      ${sub('앱이 설치되어 있지 않으면 Apple 지도(웹)로 열어요.', 'padding-top:6px')}<div style="display:flex;justify-content:flex-end;padding-top:4px"><button class="txtbtn" data-a="${act(closeSheet)}">취소</button></div></div>` };
+    const nm = EN.db.name[sh.i]; const hours = sh.tab === 'hours'; const apps = hours ? MapLinks.hoursSheet(S.mapApp) : MapLinks.sheet(S.mapApp);
+    const tab = (t, label) => `<button role="tab" aria-selected="${(t === 'hours') === hours}" data-a="${act(() => { sh.tab = t; render(); })}">${label}</button>`;
+    const rows = apps.map((a, n) => `${n > 0 ? '<hr>' : ''}<button class="maprow" data-a="${act(() => hours ? launchHours(a.id, sh.i) : launchMap(a.id, sh.i))}"><span class="ic">${I.nav}</span><span class="lb">${a.label}</span>${a.id === S.mapApp ? badge('지난번 선택') : ''}<span class="numtxt">&nbsp;&nbsp;${hours ? MapLinks.HOURS_HINT : a.hint} ›</span></button>`).join('');
+    return { body: `<div class="sc"><h2 class="h2 sheettitle">${esc(nm)}</h2><div class="sheettabs" role="tablist">${tab('dir', SHEET_TAB_DIR)}${tab('hours', SHEET_TAB_HOURS)}</div>
+      ${hours ? '' : sub('고른 지도 앱으로 이동해요. 매장 위치(목적지)만 전달하고 내 위치 좌표는 보내지 않아요. 출발지는 지도 앱이 현재 위치로 정해요.')}<div style="height:6px"></div>${rows}
+      ${hours ? `<p class="t15 hoursnote" style="padding-top:8px">${HOURS_NOTE}</p><p class="sub hourssrc" style="padding-top:2px">${HOURS_SOURCE}</p>` : sub('앱이 설치되어 있지 않으면 Apple 지도(웹)로 열어요.', 'padding-top:6px')}<div style="display:flex;justify-content:flex-end;padding-top:4px"><button class="txtbtn" data-a="${act(closeSheet)}">취소</button></div></div>` };
   }
   if (sh.type === 'a2hs') return { body: `<div class="sc">${h2('홈 화면에 추가')}<p class="t15">Safari 공유 → 홈 화면에 추가</p>${sub('홈 화면에서 열면 주소창 없이 앱처럼 쓸 수 있어요. 이 안내는 한 번만 보여 드려요.')}${sheetBtns()}</div>` };
   return null;
@@ -579,6 +601,20 @@ function launchMap(id, i) {
   setTimeout(() => {
     document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', hide); window.removeEventListener('blur', hide);
     if (!left && document.visibilityState === 'visible') { toast('지도 앱을 열 수 없어 Apple 지도로 열어요'); location.href = apple; }
+  }, 1500);
+}
+/** 영업시간·후기: 네이버(검색어만)·카카오(검색어+매장 좌표 p)로 넘김. 사용자 위치 없음. 앱이 안 열리면 미설치 안내만(다른 앱·웹으로 넘기지 않음) */
+function launchHours(id, i) {
+  const db = EN.db; const store = { lat: db.lat(i), lng: db.lng(i) };
+  A.setMapApp(id); UI.sheet = null; render();
+  let url; try { url = MapLinks.hoursUrl(id, db.name[i], db.addr[i], store); } catch { toast(HOURS_NOT_INSTALLED); return; }
+  let left = false; const hide = () => { left = true; };
+  document.addEventListener('visibilitychange', hide, { once: true }); window.addEventListener('pagehide', hide, { once: true }); window.addEventListener('blur', hide, { once: true });
+  UI.lastHoursUrl = url;
+  try { location.href = url; } catch { /* 스킴 미지원 */ }
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', hide); window.removeEventListener('blur', hide);
+    if (!left && document.visibilityState === 'visible') toast(HOURS_NOT_INSTALLED);
   }, 1500);
 }
 function toast(t) { UI.toast = t; render(); setTimeout(() => { UI.toast = null; render(); }, 2000); }
