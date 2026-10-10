@@ -207,7 +207,7 @@ export const defaultInc = () => ({ NO_VOL: false, NO_PRICE: false, NO_TASTE: fal
 export const Presets = {
   BAL: { short: '균형(기본)', sort: '거리·메뉴판 가격·앱 이용자 별점 종합', w: [0.4, 0.3, 0.3] },
   NEAR: { short: '가까운 곳', sort: '가까운 순', w: null },
-  VAL: { short: '가성비', sort: '메뉴판 가격 낮은 순(가격 비중 높음)', w: [0.2, 0.6, 0.2] },
+  VAL: { short: '가성비', sort: '가격 80% + 이용자 별점 20%(별점 5개 이상일 때)', w: [0.2, 0.6, 0.2] }, // Beta 1.8.1: 정렬은 Engine.valScore, w는 표시 호환용
   TASTE: { short: '이용자 별점', sort: '별점 5개 이상 매장을 보정 별점 높은 순으로 먼저, 별점 부족 매장은 그 아래 가까운 순', w: [0.2, 0.2, 0.6] },
 };
 export const PRESET_ORDER = ['BAL', 'NEAR', 'VAL', 'TASTE'];
@@ -276,8 +276,13 @@ export class Engine {
       items.push(e);
     }
     let main = items.filter(e => e.reason == null); const extra = items.filter(e => e.reason != null);
+    // Beta 1.8.1 가성비: 거리 비중 없음. 현재 목록의 가격 있는 매장 가격 범위로 연속 가격 점수(shared/golden/value-sort-1.8.1.md)
+    if (preset === 'VAL') {
+      const ps = main.filter(e => e.size).map(e => e.size.p);
+      if (ps.length) { const lo = Math.min(...ps), hi = Math.max(...ps); main = main.map(e => e.size ? { ...e, sc: Engine.valScore(e.d, e.size.p, lo, hi, e.t.enough ? e.t.adj : null) } : e); }
+    }
     const order = Engine.orderFor(preset);
-    const noPriceFor = e => e.size == null || (preset === 'VAL' && e.sc.sv == null);
+    const noPriceFor = e => e.size == null;
     const noPrice = main.filter(noPriceFor).sort(order);
     main = main.filter(e => !noPriceFor(e)).sort(order);
     const fb = [];
@@ -298,6 +303,7 @@ export class Engine {
       if (ea === 0 && a.t.adj !== b.t.adj) return b.t.adj - a.t.adj;
       return a.d - b.d;
     };
+    if (preset === 'VAL') return (a, b) => (b.sc.total - a.sc.total) || ((a.size ? a.size.p : Infinity) - (b.size ? b.size.p : Infinity)) || (a.d - b.d);
     return (a, b) => (b.sc.total - a.sc.total) || (a.d - b.d);
   }
   compareStores(loc, f, inc) {
@@ -330,6 +336,18 @@ export class Engine {
     if (f.type !== 'ALL') o.push({ label: '카페 유형을 전체로 바꾸면', arg: 'type', n: cnt({ ...f, type: 'ALL', brands: [] }) });
     if (f.menu !== 'am_h') o.push({ label: '메뉴를 아메리카노 Hot으로 바꾸면', arg: 'menu', n: cnt({ ...f, menu: 'am_h' }) });
     return o.filter(x => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3);
+  }
+  /** Beta 1.8.1 가성비 점수(Android Engine.valScore와 같음): priceScore=(maxP−p)/(maxP−minP)(같으면 1), ratingScore=보정 별점/5.
+   *  별점 5개 이상 0.8·price + 0.2·rating, 5개 미만 0.8·price(재분배 없음). sd는 표시용 */
+  /** Beta 1.8.1 '별점 반영' 표시(가성비 목록 전용, Android Engine.ratingBoostFlags와 같음): 별점 5개 이상이고 바로 아래 카드(다음 순위)가 더 쌀 때만 true. 같은 가격·마지막 카드는 false */
+  static ratingBoostFlags(main) {
+    const out = new Array(main.length).fill(false);
+    for (let k = 0; k < main.length - 1; k++) { const p = main[k].size ? main[k].size.p : null, q = main[k + 1].size ? main[k + 1].size.p : null; if (main[k].t.enough && p != null && q != null && q < p) out[k] = true; }
+    return out;
+  }
+  static valScore(d, p, minP, maxP, adj) {
+    const pr = maxP === minP ? 1 : (maxP - p) / (maxP - minP); const rs = adj != null ? adj / 5 : null;
+    return { total: 0.8 * pr + 0.2 * (rs ?? 0), sd: Math.max(0, 1 - d / Radius.SEARCH_M), sv: pr, st: rs, lacking: rs == null };
   }
   static valueScore(p, pop) {
     if (p == null || pop.length < 2) return null;

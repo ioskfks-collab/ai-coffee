@@ -1,10 +1,10 @@
-// AI Coffee Web Beta 1.8 — 화면·상태. Android Beta 1.8 ui/screens/*.kt, AppViewModel.kt, MainActivity.kt를 옮김.
+// AI Coffee Web Beta 1.8.1 — 화면·상태. Android Beta 1.8 ui/screens/*.kt, AppViewModel.kt, MainActivity.kt를 옮김.
 // 위치 좌표는 S.loc(메모리)에만 두고 저장·전송·console 출력하지 않음.
 import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radius, F, LBL, Reasons, Presets, PRESET_ORDER, Engine, SubmitRules, MapLinks, defaultFilter, defaultInc, parseIdMap, migrateIds, ID_VER } from './core.js';
 import { I } from './icons.js';
 import { ID_MAP_R2_R3 } from './idmap.js';
 
-export const VERSION = '1.8';
+export const VERSION = '1.8.1';
 const DB_URL = 'data/aicoffee-db-r3.txt.gz', DB_CACHE = 'aic-db-2026-06-30-r3', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
@@ -18,8 +18,9 @@ const ref = () => S.loc || (S.area ? { lat: S.area.lat, lng: S.area.lng, acc: nu
 const manual = () => !S.loc && !!S.area;
 export const MANUAL_AREA_NOTE = '선택한 지역의 중심 기준이라 실제 거리와 다를 수 있어요';
 // Beta 1.8 지도 앱 시트 문구(ui-1.8-map-app-sheet.md 그대로)
-export const HOURS_ROW = '영업시간·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·후기 보기';
-export const HOURS_NOTE = '네이버·카카오에서 검색 결과로 열려요. 주소로 매장을 확인해 주세요.', HOURS_SOURCE = '영업시간·후기는 네이버·카카오 기준이에요.';
+export const HOURS_ROW = '영업시간·별점·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·별점·후기 보기'; // Beta 1.8.1 이름 변경(외부 별점 수집·저장 없음)
+export const HOURS_NOTE = '네이버·카카오에서 검색 결과로 열려요. 주소로 매장을 확인해 주세요.', HOURS_SOURCE = '영업시간·별점·후기는 네이버·카카오 기준이에요.'; // Beta 1.8.1
+export const RATING_BOOST = '별점 반영'; // Beta 1.8.1 가성비 카드 표시(Engine.ratingBoostFlags)
 export const HOURS_NOT_INSTALLED = '네이버 지도나 카카오맵이 설치되어 있지 않아요.';
 const locOK = () => S.consent.age === '14+' && S.consent.loc === 'agree';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -180,20 +181,21 @@ const noPriceText = e => { const ss = e.ss; return ss?.pending ? '가격 확인 
 const cardVolume = e => { const s = e.size; if (!s) return null; const a = [s.ml != null ? MenuTable.mlText(s) : null, s.src.startsWith('이용자') ? '제보 가격' : null].filter(Boolean); return a.length ? a.join(' · ') : null; };
 
 /** 카드 3번째 줄(Beta 1.8): [별점] · [1km 밖] · 320m · 도보 5분(추정). 줄바꿈은 항목 사이에서만('·'는 앞 줄에 남고 '도보 n분(추정)'은 통째로 다음 줄) */
-function cardMeta(e, showR, outside) {
+function cardMeta(e, showR, outside, boost = false) {
   const hasD = e.d != null; const items = [];
   if (showR) items.push(ratingInline(e.t));
+  if (boost) items.push(`<span class="boost">${RATING_BOOST}</span>`);
   if (outside) items.push('<span class="sub">1km 밖</span>');
   if (hasD) { items.push(`<span class="dist numtxt">${Geo.distPlain(e.d)}</span>`); items.push(`<span class="walk sub">${Geo.walkText(e.d)}</span>`); }
   if (!items.length) return '';
   return `<div class="l3 meta">${items.map((x, k) => k < items.length - 1 ? `<span class="mi">${x}<span class="sep">&nbsp;·</span></span> ` : `<span class="mi">${x}</span>`).join('')}</div>`;
 }
-function storeCard(e, n, outside) {
+function storeCard(e, n, outside, boost = false) {
   const db = EN.db; const s = e.size; const showR = e.t.enough;
   return `<div class="card" role="button" tabindex="0" data-a="${act(() => go('store/' + e.i))}">
     <div class="body"><div class="l1">${n > 0 ? `<span class="rank">${n}</span>` : ''}<span class="name">${esc(db.name[e.i])}</span></div>
     <div class="l2">${s ? `<span class="price">${won(s.p)}</span>${cardVolume(e) ? `<span class="sub">${esc(cardVolume(e))}</span>` : ''}` : `<span class="noprice">${noPriceText(e)}</span>`}</div>
-    ${cardMeta(e, showR, outside)}</div>
+    ${cardMeta(e, showR, outside, boost)}</div>
     <button class="diricon" aria-label="길찾기" data-a="${act(() => openSheet({ type: 'map', i: e.i }))}"><span>${I.nav}</span></button></div>`;
 }
 
@@ -259,7 +261,8 @@ function nearList(ns) {
     h += `<div class="empty">${emptyCup()}<p class="b" style="font-size:var(--fs-17);margin-top:8px">조건에 맞는 매장이 1km 안에 없어요</p>${sub(`필터 없이 보면 1km 안 ${r.baseCount}곳이 있어요.`)}<div style="width:100%;text-align:left">${exclNotes(r)}${relaxBlock(ns.relax)}</div></div>`;
   } else {
     h += exclNotes(r);
-    h += r.main.map((e, n) => storeCard(e, n + 1, false)).join('');
+    const boost = ns.preset === 'VAL' ? Engine.ratingBoostFlags(r.main) : null;
+    h += r.main.map((e, n) => storeCard(e, n + 1, false, !!(boost && boost[n]))).join('');
     if (r.noPriceList.length) h += noPriceHeader(r.noPriceList.length, f.menu) + r.noPriceList.map(e => storeCard(e, 0, false)).join('');
     for (const k of Reasons) { const g = r.groups[k]; if (ns.inc[k] && g.length) h += h3(`${LBL[k]} ${g.length}곳 (포함해서 보기)`) + g.map(e => storeCard(e, 0, false)).join(''); }
   }
@@ -414,7 +417,7 @@ const DOCS = {
   lbs: ['위치기반서비스 이용약관', `문안 확정 전\n\n· 개인위치정보는 기기 안에서 거리 계산에만 쓰고 서버·지도 앱·광고로 보내거나 저장하지 않아요\n· ${MAPTXT}\n· 동의는 선택이며 언제든 철회할 수 있어요\n· 감독기관: 방송미디어통신위원회`],
   privacy: ['개인정보처리방침', `문안 확정 전\n\n· 수집: 익명 기기 ID, 별점, 제보·신고 내용, 제출 날짜\n· 수집 안 함: 이름·전화번호·이메일·광고 ID·위치 좌표\n· 외부 지도 앱: ${MAPTXT}\n· 보유·파기: (확정 전)\n· 광고 SDK별 사업자·수집 항목·국외 이전: (SDK 선정 후 기재) — 현재 베타는 광고 SDK 없음, 배너 자리만\n· 문의처: (확정 전) · 감독기관: 개인정보보호위원회`],
   policy: ['별점 운영정책', '1. 평가 자격: 앱을 쓰는 기기, 해당 매장 100m 안 현장 확인(기기 안에서만 판정), 기기당 매장 1개(수정 가능, 재등록 30일 후). 이해관계자는 평가할 수 없어요.\n2. 노출 기간: 최근 12개월 별점을 게시하고 평균에 반영해요.\n3. 계산 방식: 평균 + 베이지안 보정(브랜드 평균 또는 개인 카페 평균). 별점 5개 미만은 \'별점 부족\'.\n4. 삭제·보류 기준: 스팸, 현장 확인 우회, 자동화 의심, 이해관계자 평가, 복사한 정보일 때만. 점수가 낮다는 이유로 지우지 않아요.\n5. 이의제기: 앱 안 신고 창구, 영업일 3일 안 검토(초기값).\n6. 보상 없음: 별점·제보에 대가를 주지 않아요.\n7. 기록 보관: 처리 기록 보관(기간 확정 전).\n8. 임시조치: 권리침해 신고 → 소명 확인 → 정정 또는 30일 이내 임시조치 → 통지 → 앱 안 공시.'],
-  criteria: ['추천 기준 설명 · 점수 기반 추천', '점수 기반 추천(거리·메뉴판 가격·앱 이용자 별점 가중합)이에요. 반경 1km 안 매장만 점수를 계산해요(별점·가격 제보의 현장 확인은 별도 규칙으로 매장 100m 안).\n\n· 균형: 거리 0.4 · 가격 0.3 · 별점 0.3\n· 가까운 곳: 거리순 정렬\n· 가성비: 0.2 · 0.6 · 0.2\n· 이용자 별점: 0.2 · 0.2 · 0.6\n\n· 거리: 1 − 거리/1km (기기 안 직선거리, 앱 안 지도 없음)\n· 가격: 1 − (같은 메뉴의 12개 브랜드 메뉴판 가격 중 백분위). 모집단 고정, 용량 환산 없음.\n· 별점: 베이지안 보정 (v/(v+m))·R + (m/(v+m))·C, m=10. 별점 5개 미만은 \'별점 부족\'.\n· 결측: 없는 항목의 가중치는 나머지에 비례 재분배하고 \'정보 부족\' 배지. 모든 정렬에서 선택 메뉴 가격이 없는 매장은 순위에 넣지 않고 맨 아래 \'가격 정보 없음\' 묶음에 같은 정렬 순서로 보여줘요(3km 대체 목록도 동일).\n· 필터는 결과를 걸러낼 뿐 정렬을 바꾸지 않아요.\n· 광고 여부는 추천 점수와 순위에 영향을 주지 않아요.'],
+  criteria: ['추천 기준 설명 · 점수 기반 추천', '점수 기반 추천(거리·메뉴판 가격·앱 이용자 별점 가중합)이에요. 반경 1km 안 매장만 점수를 계산해요(별점·가격 제보의 현장 확인은 별도 규칙으로 매장 100m 안).\n\n· 균형: 거리 0.4 · 가격 0.3 · 별점 0.3\n· 가까운 곳: 거리순 정렬\n· 가성비: 가격 80% + 이용자 별점 20%(별점 5개 이상일 때). 가격 점수 = (목록 최고가 − 가격)/(최고가 − 최저가), 거리는 반영 안 함\n· 이용자 별점: 0.2 · 0.2 · 0.6\n\n· 거리: 1 − 거리/1km (기기 안 직선거리, 앱 안 지도 없음)\n· 가격: 1 − (같은 메뉴의 12개 브랜드 메뉴판 가격 중 백분위). 모집단 고정, 용량 환산 없음.\n· 별점: 베이지안 보정 (v/(v+m))·R + (m/(v+m))·C, m=10. 별점 5개 미만은 \'별점 부족\'.\n· 결측: 없는 항목의 가중치는 나머지에 비례 재분배하고 \'정보 부족\' 배지. 모든 정렬에서 선택 메뉴 가격이 없는 매장은 순위에 넣지 않고 맨 아래 \'가격 정보 없음\' 묶음에 같은 정렬 순서로 보여줘요(3km 대체 목록도 동일).\n· 필터는 결과를 걸러낼 뿐 정렬을 바꾸지 않아요.\n· 광고 여부는 추천 점수와 순위에 영향을 주지 않아요.'],
   sources: ['데이터 출처·기준일 · 제휴 없음 · 광고 안내', `· 매장(상호·주소·좌표): 소상공인시장진흥공단 상가(상권)정보, 기준일 2026-06-30, 소분류 I21201 '카페'. 전국 파일 하나를 처음 한 번 받아 기기에 저장하고, 모든 사용자가 같은 파일을 써요(위치에 따라 받는 파일이 달라지지 않아요).\n· 개인 카페는 분류 규칙에 따른 추정이라 '개인 카페(추정)'으로 표시해요.\n· 브랜드 기본 가격: 예시 가격(확인 전) — 12개 브랜드 공식 사이트가 가격을 게시하지 않아 매장 메뉴판으로 확인 전이에요.\n· 용량: 공식 게시값만 표시(빽다방 아메리카노·라떼, 할리스 R/G/V, 폴바셋 룽고), 나머지는 미공개.\n· 개인 카페 가격: 착한가격업소 공공데이터(2026-06-30 기준) 메뉴판 가격, 용량 미공개. 음료가 아닌 메뉴는 비교·필터·점수에서 빼요.\n· 별점은 예시 데이터예요.\n· 지도: ${MAPTXT}\n· 등록된 브랜드·카페와 제휴 관계가 없어요. 브랜드 로고·메뉴 사진은 쓰지 않아요.\n· 광고: 작은 비개인화 배너만, '광고' 라벨. 커피 브랜드 광고는 차단해요. 이 베타는 광고 SDK 없이 자리만 표시해요.`],
 };
 function InfoScreen() {
