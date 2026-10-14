@@ -1,7 +1,7 @@
 {
   "name": "AI Coffee",
   "short_name": "AI Coffee",
-  "description": "내 주변 1km 카페 메뉴판 가격 비교 (Web Beta 1.8.1)",
+  "description": "내 주변 1km 카페 메뉴판 가격 비교 (Web Beta 1.8.2)",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",

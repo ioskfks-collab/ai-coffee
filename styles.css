@@ -221,3 +221,8 @@ html.big .trow.sz { flex-direction: column; align-items: stretch; } html.big .tr
 .manualnote .pair { margin-top: 6px; }
 /* Beta 1.8.1 가성비 카드 '별점 반영' 작은 아웃라인 표시(글자 --text, 대비 4.5:1 이상) */
 .card .l3.meta .boost { display: inline-block; font-size: calc(var(--fs-sub) * 0.92); line-height: 1.4; font-weight: 700; color: var(--text); border: 1px solid var(--secondary); border-radius: 6px; padding: 0 5px; white-space: nowrap; }
+
+/* Beta 1.8.2 */
+.cattabs { margin-top: 0; } .cattabs button { font-size: var(--fs-body); }
+.listrow.menurow span .sub, .listrow.mymenurow .sub { font-weight: 400; }
+.fold button.noinfo { color: var(--primary); }

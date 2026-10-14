@@ -1,0 +1,13 @@
+brand,bean_status,source_url,checked_date,quote_allowed,terms_url,terms_checked_date
+스타벅스,원두 13종·로스팅 단계 수집(맛 설명은 추출 안 함),https://www.starbucks.co.kr/coffee/product_list.do,2026-10-15,false,https://www.starbucks.co.kr/footer/etc/rules.do,2026-10-15
+투썸플레이스,3종 수집,https://www.twosome.co.kr/mn/signatureMenu.do,2026-10-15,false,https://www.twosome.co.kr/ma/termsTwosomeUse.do,2026-10-15
+이디야,수집,https://www.ediya.com/contents/ediya_bean.html,2026-10-15,false,https://members.ediya.com/support/terms/detail/101/100001,2026-10-15
+메가MGC커피,미수집,https://www.mega-mgccoffee.com/menu/,2026-10-15,false,,2026-10-15
+컴포즈커피,미확인,https://composecoffee.com/menu,2026-10-15,false,,2026-10-15
+빽다방,수집,https://paikdabang.com/about/coffee_story/,2026-10-15,false,,2026-10-15
+할리스,수집,https://www.hollys.co.kr/menu/bean.do,2026-10-15,false,https://www.hollys.co.kr/customer/policy/serviceTerms.do,2026-10-15
+폴바셋,수집,https://www.baristapaulbassett.co.kr/contactus/coffeebeans/Signature.pb,2026-10-15,false,https://www.baristapaulbassett.co.kr/footer/Service.pb,2026-10-15
+커피빈,13종 수집(로스팅 단계 대응 불명확),https://www.coffeebeankorea.com/product/bean_guide.asp,2026-10-15,false,https://www.coffeebeankorea.com/member/agree.asp,2026-10-15
+파스쿠찌,미확인,https://www.pascucci.co.kr/,2026-10-15,false,,2026-10-15
+하삼동커피,수집,https://www.hasamdongcoffee.com/,2026-10-15,false,,2026-10-15
+텐퍼센트커피,미확인,https://tenpercentcoffee.com/,2026-10-15,false,,2026-10-15

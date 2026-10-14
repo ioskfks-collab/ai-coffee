@@ -3,14 +3,15 @@
 import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radius, F, LBL, Reasons, Presets, PRESET_ORDER, Engine, SubmitRules, MapLinks, defaultFilter, defaultInc, parseIdMap, migrateIds, ID_VER } from './core.js';
 import { I } from './icons.js';
 import { ID_MAP_R2_R3 } from './idmap.js';
+import { MenuLinks, Seasonal, TasteTags, MyMenu, TastePrefs, Data182 } from './beta182.js';
 
-export const VERSION = '1.8.1';
+export const VERSION = '1.8.2';
 const DB_URL = 'data/aicoffee-db-r3.txt.gz', DB_CACHE = 'aic-db-2026-06-30-r3', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
 const S = { loaded: false, ready: false, dbError: null, consent: {}, loc: null, locStatus: 'idle', locErr: null,
   filter: defaultFilter(), preset: 'BAL', inc: defaultInc(), favs: [], myRatings: {}, outbox: [], mapApp: null,
-  area: null }; // area: Beta 1.7 수동 시·구(메모리 전용, persist 안 함)
+  area: null, taste: TastePrefs.empty(), homeCat: 'near' }; // area: Beta 1.7 수동 시·구(메모리 전용, persist 안 함)
 let EN = null, did = '';
 const UI = { route: 'near', sheet: null, toast: null };
 /** 목록·거리 기준점: GPS가 있으면 GPS, 없으면 고른 시·구 중심점 */
@@ -18,9 +19,16 @@ const ref = () => S.loc || (S.area ? { lat: S.area.lat, lng: S.area.lng, acc: nu
 const manual = () => !S.loc && !!S.area;
 export const MANUAL_AREA_NOTE = '선택한 지역의 중심 기준이라 실제 거리와 다를 수 있어요';
 // Beta 1.8 지도 앱 시트 문구(ui-1.8-map-app-sheet.md 그대로)
-export const HOURS_ROW = '영업시간·별점·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·별점·후기 보기'; // Beta 1.8.1 이름 변경(외부 별점 수집·저장 없음)
+export const HOURS_ROW = '영업시간·별점·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·후기'; // Beta 1.8.1 이름 변경(외부 별점 수집·저장 없음)
 export const HOURS_NOTE = '네이버·카카오에서 검색 결과로 열려요. 주소로 매장을 확인해 주세요.', HOURS_SOURCE = '영업시간·별점·후기는 네이버·카카오 기준이에요.'; // Beta 1.8.1
 export const RATING_BOOST = '별점 반영'; // Beta 1.8.1 가성비 카드 표시(Engine.ratingBoostFlags)
+// Beta 1.8.2 문구(ui/ui-1.8.2.md 확정본, Android Sheet182·Home182와 같음)
+export const SHEET_TAB_MENU = '메뉴 보기', MENU_ROW = '메뉴 보기 ›', MENU_ROW_NOTE = '매장 검색 화면으로 열려요. 메뉴 탭을 눌러 확인해 주세요.';
+export const MENU_NOTE = '네이버·카카오의 매장 검색 화면으로 열려요. 메뉴 탭을 눌러 확인해 주세요.', MENU_SOURCE = '메뉴·가격은 네이버·카카오 기준이에요.';
+export const H182 = { CATS: [['near', '주변 카페'], ['fav', '나의 즐겨찾기'], ['mymenu', '나의 메뉴']],
+  EMPTY_FAV: '아직 즐겨찾기한 카페가 없어요. 카페 상세에서 ☆를 눌러 추가해 보세요.', EMPTY_NO_TASTE: '원두나 맛 취향을 고르면 맞는 카페를 모아 보여 드려요.',
+  EMPTY_NO_MATCH: '고른 취향과 공식 설명이 일치하는 카페가 없어요.', PICK: '취향 고르기', EDIT: '취향 수정', SORT_LABEL: '일치 많은 순', TASTE_NOTE: '취향은 이 휴대폰에만 저장돼요.',
+  NO_INFO_NOTE: '브랜드 공식 원두·메뉴 설명이 없어 취향과 맞추지 않았어요.' };
 export const HOURS_NOT_INSTALLED = '네이버 지도나 카카오맵이 설치되어 있지 않아요.';
 const locOK = () => S.consent.age === '14+' && S.consent.loc === 'agree';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -41,6 +49,7 @@ function restore() {
   const f = o.filter; if (f && typeof f === 'object') S.filter = { ...defaultFilter(), ...f, brands: Array.isArray(f.brands) ? f.brands : [] };
   if (Presets[o.preset]) S.preset = o.preset;
   S.favs = Array.isArray(o.favs) ? o.favs.filter(Number.isInteger) : []; S.myRatings = o.myRatings && typeof o.myRatings === 'object' ? o.myRatings : {}; S.outbox = Array.isArray(o.outbox) ? o.outbox : []; S.mapApp = o.mapApp || null;
+  try { S.taste = TastePrefs.load(); } catch { S.taste = TastePrefs.empty(); }
   S.loaded = true; persist();
 }
 function mut(fn) { fn(); persist(); render(); }
@@ -114,6 +123,8 @@ const A = {
   setFilter(f) { mut(() => { S.filter = f; }); },
   resetFilter() { mut(() => { S.filter = defaultFilter(); S.inc = defaultInc(); }); },
   toggleInc(r) { S.inc = { ...S.inc, [r]: !S.inc[r] }; render(); },
+  setTaste(tags) { S.taste = TastePrefs.clean({ tags, updated: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) }); try { TastePrefs.save(S.taste); } catch { } render(); },
+  setHomeCat(c) { S.homeCat = c; UI.scrollReset = true; render(); },
   setMapApp(id) { S.mapApp = id; persist(); },
   relax(arg) {
     const f = S.filter;
@@ -269,20 +280,63 @@ function nearList(ns) {
   h += sub(`매장 정보: 소상공인시장진흥공단 상가(상권)정보 기준일 ${EN.db.dbDate} · 전국 ${EN.db.size.toLocaleString('ko-KR')}곳(프랜차이즈 12개 브랜드 + 개인 카페(추정))을 기기에 저장해 계산 · 폐업·없는 매장은 매장 상세 › 정보 오류 제보로 알려 주세요.`, 'padding:16px 0');
   return h;
 }
+// ---------- Beta 1.8.2 홈 카테고리·나의 메뉴·취향 입력 ----------
+const catTabs = () => `<div class="sheettabs cattabs" role="tablist">${H182.CATS.map(([k, l]) => `<button role="tab" aria-selected="${S.homeCat === k}" data-a="${act(() => A.setHomeCat(k))}">${l}</button>`).join('')}</div>`;
+const empty182 = (t, b) => `<div class="empty">${emptyCup()}<p class="b" style="margin-top:8px">${esc(t)}</p>${b ? `<div style="padding-top:12px">${btn(b, () => go('taste'))}</div>` : ''}</div>`;
+function favBody() {
+  if (!S.favs.length) return empty182(H182.EMPTY_FAV);
+  const R0 = ref();
+  return S.favs.filter(i => i < EN.db.size).map(i => { const d = R0 ? Geo.dist(EN.db, i, R0) : null; const f0 = { ...defaultFilter(), menu: S.filter.menu };
+    const e = { ...(EN.evalStore(i, f0) || { i, size: null, ss: EN.storeSizes(i, f0.menu), reason: null, t: EN.taste(i) }), d };
+    return storeCard(e, 0, R0 != null && d > Radius.SEARCH_M); }).join('');
+}
+let MM = { key: null, r: null };
+function myMenuBody(L) {
+  const tags = S.taste.tags;
+  if (!tags.length) return empty182(H182.EMPTY_NO_TASTE, H182.PICK);
+  let b = `<div class="rowc" style="padding-top:6px;gap:8px"><div class="flow" style="flex:1;row-gap:4px">${tags.map(t => badge(t)).join('')}</div><div>${btn(H182.EDIT, () => go('taste'))}</div></div>${sub(H182.SORT_LABEL, 'padding-top:6px')}`;
+  const key = tags.join() + '|' + L.lat + ',' + L.lng;
+  if (MM.key !== key) { const db = EN.db, st = [];
+    for (let i = 0; i < db.size; i++) { const d = Geo.dist(db, i, L); if (d <= Radius.SEARCH_M) st.push([i, db.brandName(i), d]); }
+    MM = { key, r: MyMenu.run(tags, Data182.BEANS, st) }; }
+  const r = MM.r, db = EN.db;
+  if (!r.hits.length) b += empty182(H182.EMPTY_NO_MATCH, H182.EDIT);
+  b += r.hits.map(h => `<button class="listrow mymenurow" data-a="${act(() => go('store/' + h.store))}"><span><b>${esc(db.name[h.store])}</b><br><span class="sub">${esc(Geo.distPlain(h.dist))} · 일치: ${esc(h.matched.join(', '))}</span>${(bb => bb && bb.checked ? `<br><span class="sub">출처: ${esc(bb.brand)} 공식 홈페이지 · 확인 ${Seasonal.md(bb.checked)}</span>` : '')(Data182.BEANS.find(x => x.brand === db.brandName(h.store)))}</span>${I.right}</button><hr>`).join('');
+  const bc = Data182.beansChecked(); if (bc) b += sub(`원두 정보는 브랜드 공식 홈페이지 기준 · 확인 ${Seasonal.md(bc)}`, 'padding-top:8px');
+  if (r.noInfo.length) { const open = !!UI.noInfo;
+    b += `<div class="fold"><button class="noinfo" aria-expanded="${open}" data-a="${act(() => { UI.noInfo = !UI.noInfo; render(); })}"><span>정보 없음 ${r.noInfo.length}곳</span>${open ? I.up : I.down}</button>${open ? `<div class="content">${sub(H182.NO_INFO_NOTE)}${r.noInfo.map(i => listRow(db.name[i], () => go('store/' + i))).join('')}</div>` : ''}</div>`; }
+  return b;
+}
+const TASTE = { sel: null };
+function TasteScreen() {
+  const secs = TasteTags.visibleSections(Data182.TAG_BRANDS_MATCHED); const allowed = secs.flatMap(s => s[1]);
+  if (!TASTE.sel) TASTE.sel = S.taste.tags.filter(t => allowed.includes(t));
+  const sel = TASTE.sel; const leave = () => { TASTE.sel = null; back(); };
+  const right = `<button class="txtbtn" data-a="${act(() => { TASTE.sel = []; render(); })}">초기화</button>`;
+  return topBar('취향 고르기', { onBack: leave, right }) + `<div class="scroll">${sub(H182.TASTE_NOTE, 'padding-top:6px')}${secs.map(([h, ts]) => h3(h) + `<div class="flow tall">${ts.map(t => chip(t, sel.includes(t), () => { TASTE.sel = sel.includes(t) ? sel.filter(x => x !== t) : [...sel, t]; render(); })).join('')}</div>`).join('')}<div style="height:12px"></div></div>
+    <div class="cta">${btn('저장', () => { A.setTaste(sel); TASTE.sel = null; back(); }, 'pri', !sel.length)}</div>`;
+}
+function seasonSection(brand) {
+  const vis = Seasonal.visible(Data182.SEASON.filter(x => x.brand === brand)); if (!vis.length) return '';
+  const ck = vis.map(x => x.checked).filter(Boolean).sort().pop();
+  return `<section class="season">${h3('시즌 메뉴')}${vis.map((x, n) => `${n ? '<hr>' : ''}<div class="trow"><span class="nm" style="flex:1"><b class="t15">${esc(x.name)}</b><span class="sub">${esc(Seasonal.period(x))}${Seasonal.endingSoon(x) ? ' · <b>곧 종료</b>' : ''}</span></span><span class="rowprice">${x.price != null ? won(x.price) : '가격 미공개'}</span></div>`).join('')}${sub('브랜드 공식 홈페이지 기준' + (ck ? ` · 확인 날짜 ${Seasonal.md(ck)}` : ''))}</section>`;
+}
 function NearScreen() {
   const L = ref(); const ns = nearState(); const man = manual();
   const head = topBar('주변 카페', { sub: man ? `반경 1km · 선택 지역 기준 · ${S.area.label}` : L ? `반경 1km · GPS 기준 · 정확도 약 ${Math.trunc(L.acc || 0)}m` : null,
     right: L && !man ? `<button class="iconbtn" aria-label="위치 다시 측정" data-a="${act(requestGps)}">${I.refresh}</button>` : '',
-    extra: L && EN ? `<div style="display:flex;flex-direction:column;gap:2px">${sortTabs()}${chipBar()}</div>` : null });
-  let body;
-  if (S.dbError) body = `<div class="scroll" data-keep="near">${box(`<p class="b">매장 정보를 불러오지 못했어요.</p><p>${esc(S.dbError)}</p>`, 'warn')}</div>`;
+    extra: EN ? `<div style="display:flex;flex-direction:column;gap:2px">${catTabs()}${L && S.homeCat === 'near' ? sortTabs() + chipBar() : ''}</div>` : null });
+  let body; const cat = EN && !S.dbError ? S.homeCat : 'near';
+  if (cat === 'fav') body = `<div class="scroll" data-keep="fav">${favBody()}</div>`;
+  else if (cat === 'mymenu' && (L || !S.taste.tags.length)) body = `<div class="scroll" data-keep="mymenu">${myMenuBody(L)}</div>`;
+  else if (S.dbError) body = `<div class="scroll" data-keep="near">${box(`<p class="b">매장 정보를 불러오지 못했어요.</p><p>${esc(S.dbError)}</p>`, 'warn')}</div>`;
   else if (!EN) body = `<div class="scroll"><div style="padding-top:24px"><p class="b">매장 DB를 준비하고 있어요…</p>${sub('전국 일괄 파일(모든 사용자 동일)을 처음 한 번 받아 기기 안에서 읽고 있어요. 위치 정보는 보내지 않아요.')}<div class="progress"></div></div></div>`;
   else if (!L) body = `<div class="scroll">${locationHelp()}</div>`;
   else if (!ns) body = `<div class="center"><div class="spinner"></div></div>`;
   else body = `<div class="scroll list ${UI.anim ? 'fadein' : ''}" data-keep="near">${nearList(ns)}</div>`;
   UI.anim = false;
   let foot = '';
-  if (ns) { const r = ns.r; foot += `<button class="summary" data-a="${act(() => openSheet({ type: 'nearInfo' }))}"><span class="t">${esc(`${MenuTable.menuName(ns.filter.menu)} · 1km 안 ${r.main.length + r.noPriceList.length}곳 · 예시 가격 포함`)}</span><span class="i" aria-label="현재 기준·가격·별점 안내 열기">${I.info}</span></button>`; }
+  if (ns && cat === 'near') { const r = ns.r; foot += `<button class="summary" data-a="${act(() => openSheet({ type: 'nearInfo' }))}"><span class="t">${esc(`${MenuTable.menuName(ns.filter.menu)} · 1km 안 ${r.main.length + r.noPriceList.length}곳 · 예시 가격 포함`)}</span><span class="i" aria-label="현재 기준·가격·별점 안내 열기">${I.info}</span></button>`; }
   if (L && EN) foot += ad();
   return head + body + foot;
 }
@@ -315,7 +369,7 @@ function StoreScreen(i) {
   let b = `<h2 class="title" style="padding-top:6px;white-space:normal">${esc(db.name[i])}</h2>
     <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distPlain(d) : '위치 미정'}</span>${d != null ? ' · <span class="nowrap">' + Geo.walkText(d) + '</span>' : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
     <p>주소: ${esc(db.addr[i])}</p>
-    <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + h3('메뉴 가격');
+    <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + (db.isFr(i) ? seasonSection(db.brandName(i)) : '') + h3('메뉴 가격');
   if (db.isFr(i)) {
     const br = db.brandName(i);
     const rows = MenuTable.KEYS.map(k => [k, MenuTable.brandSizes(br, k)]).filter(([, ss]) => ss && !ss.notSold);
@@ -351,7 +405,7 @@ function StoreScreen(i) {
   fold += `<hr style="margin:6px 0">` + [EX_PRICE_NOTICE, ...DATA_NOTICE].map(x => `<p style="padding:2px 0">· ${esc(x)}</p>`).join('')
     + `<p style="padding:2px 0">· 길 안내: 설치된 지도 앱으로 이동 · 매장 위치만 전달하고 내 위치 좌표는 보내지 않아요</p><p style="padding:2px 0">· 매장 정보 출처: 소상공인시장진흥공단 상가(상권)정보(기준일 ${db.dbDate}) · 등록된 브랜드·카페와 제휴 관계가 없어요</p>`;
   const open = !!UI.fold;
-  b += `<div style="height:4px"></div><hr>` + `<button class="listrow hoursrow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'hours' }))}"><span>${HOURS_ROW}</span></button>`;
+  b += `<div style="height:4px"></div><hr>` + `<button class="listrow hoursrow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'hours' }))}"><span>${HOURS_ROW}</span></button><hr><button class="listrow menurow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'menu' }))}"><span>${MENU_ROW}<br><span class="sub">${MENU_ROW_NOTE}</span></span></button>`;
   b += `<div class="fold"><hr><button aria-expanded="${open}" data-a="${act(() => { UI.fold = !UI.fold; render(); })}"><span>출처·안내 · 추천 점수</span>${open ? I.up : I.down}</button>${open ? `<div class="content">${fold}</div>` : ''}</div>`;
   b += '<hr>' + listRow('정보 제보·신고', () => openSheet({ type: 'report', i }));
   return h + `<div class="scroll" data-keep="store">${b}</div><div class="cta">${btn('지도 앱으로 길찾기', () => openSheet({ type: 'map', i }), 'pri')}</div>` + ad();
@@ -428,6 +482,8 @@ function InfoScreen() {
   return topBar('정보', { sub: `AI Coffee Web Beta ${VERSION}` }) + `<div class="scroll" data-keep="info">${b}</div>` + ad();
 }
 let OFL = null;
+const termsLinks = () => !Data182.STATUS.length ? '' : h3('원두·맛 정보 (브랜드 공식 홈페이지 기준)') + sub('원문은 싣지 않고 일치한 태그만 써요.') + Data182.STATUS.map(([b, c]) => { const t = Data182.TERMS.find(x => x.brand === b);
+  return `<div class="rowc termsrow" style="min-height:48px"><p style="flex:1">${esc(b)} · ${c ? '확인 ' + Seasonal.md(c) : '미확인'}</p>${t && t.termsUrl ? `<a class="txtbtn c termslink" style="min-height:48px;display:inline-flex;align-items:center" href="${esc(t.termsUrl)}" target="_blank" rel="noopener noreferrer">약관 보기 ›</a>` : '<span class="sub">약관 미확인</span>'}</div>`; }).join('');
 function DocScreen(name) {
   if (name === 'withdraw') {
     let b = `<p class="b" style="padding-top:12px">현재 상태: ${cstate(S.consent)}${S.consent.date ? ` (${S.consent.date})` : ''}</p>` + box('<p>철회하면 위치 기능이 꺼지고 주변 매장 찾기를 쓸 수 없어요(메뉴 비교·즐겨찾기는 가능). iPhone 설정 › 개인정보 보호 및 보안 › 위치 서비스 › Safari 웹 사이트에서 위치 권한도 끌 수 있어요.</p>');
@@ -445,7 +501,8 @@ function DocScreen(name) {
     return topBar('오픈소스 라이선스', { onBack: back }) + `<div class="scroll">${b}</div>`;
   }
   const d = DOCS[name] || ['문서', '없는 문서예요.'];
-  return topBar(d[0], { onBack: back }) + `<div class="scroll"><p class="pre" style="padding-top:12px">${esc(d[1])}</p></div>`;
+  const extra = '';
+  return topBar(d[0], { onBack: back }) + `<div class="scroll"><p class="pre" style="padding-top:12px">${esc(d[1] + extra)}</p>${name === 'sources' ? termsLinks() : ''}</div>`;
 }
 
 // ---------- 동의 ----------
@@ -581,12 +638,12 @@ function sheetContent() {
   if (sh.type === 'report') return { body: `<div class="sc">${h2('정보 제보·신고')}${listRow('가격 제보 (이 매장에서 본 메뉴판 가격)', () => go(`price/${sh.i}`))}<hr>${listRow('별점·제보 신고 / 이의제기', () => go(`report/${sh.i}/c`))}<hr>${listRow('정보 오류 제보 (폐점·이전, 메뉴·가격·용량 오류)', () => go(`report/${sh.i}/x`))}${sheetBtns()}</div>` };
   if (sh.type === 'rate') return { body: `<div class="sc">${rateContent(sh.i, true, sh)}</div>`, full: true };
   if (sh.type === 'map') {
-    const nm = EN.db.name[sh.i]; const hours = sh.tab === 'hours'; const apps = hours ? MapLinks.hoursSheet(S.mapApp) : MapLinks.sheet(S.mapApp);
-    const tab = (t, label) => `<button role="tab" aria-selected="${(t === 'hours') === hours}" data-a="${act(() => { sh.tab = t; render(); })}">${label}</button>`;
-    const rows = apps.map((a, n) => `${n > 0 ? '<hr>' : ''}<button class="maprow" data-a="${act(() => hours ? launchHours(a.id, sh.i) : launchMap(a.id, sh.i))}"><span class="ic">${I.nav}</span><span class="lb">${a.label}</span>${a.id === S.mapApp ? badge('지난번 선택') : ''}<span class="numtxt">&nbsp;&nbsp;${hours ? MapLinks.HOURS_HINT : a.hint} ›</span></button>`).join('');
-    return { body: `<div class="sc"><h2 class="h2 sheettitle">${esc(nm)}</h2><div class="sheettabs" role="tablist">${tab('dir', SHEET_TAB_DIR)}${tab('hours', SHEET_TAB_HOURS)}</div>
+    const nm = EN.db.name[sh.i]; const menu = sh.tab === 'menu'; const hours = sh.tab === 'hours' || menu; const apps = hours ? MapLinks.hoursSheet(S.mapApp) : MapLinks.sheet(S.mapApp);
+    const tab = (t, label) => `<button role="tab" aria-selected="${t === (sh.tab || 'dir')}" data-a="${act(() => { sh.tab = t; render(); })}">${label}</button>`;
+    const rows = apps.map((a, n) => `${n > 0 ? '<hr>' : ''}<button class="maprow" data-a="${act(() => hours ? launchHours(a.id, sh.i, menu) : launchMap(a.id, sh.i))}"><span class="ic">${I.nav}</span><span class="lb">${a.label}</span>${a.id === S.mapApp ? badge('지난번 선택') : ''}<span class="numtxt">&nbsp;&nbsp;${hours ? MapLinks.HOURS_HINT : a.hint} ›</span></button>`).join('');
+    return { body: `<div class="sc"><h2 class="h2 sheettitle">${esc(nm)}</h2><div class="sheettabs" role="tablist">${tab('dir', SHEET_TAB_DIR)}${tab('hours', SHEET_TAB_HOURS)}${tab('menu', SHEET_TAB_MENU)}</div>
       ${hours ? '' : sub('고른 지도 앱으로 이동해요. 매장 위치(목적지)만 전달하고 내 위치 좌표는 보내지 않아요. 출발지는 지도 앱이 현재 위치로 정해요.')}<div style="height:6px"></div>${rows}
-      ${hours ? `<p class="t15 hoursnote" style="padding-top:8px">${HOURS_NOTE}</p><p class="sub hourssrc" style="padding-top:2px">${HOURS_SOURCE}</p>` : sub('앱이 설치되어 있지 않으면 Apple 지도(웹)로 열어요.', 'padding-top:6px')}<div style="display:flex;justify-content:flex-end;padding-top:4px"><button class="txtbtn" data-a="${act(closeSheet)}">취소</button></div></div>` };
+      ${hours ? `<p class="t15 hoursnote" style="padding-top:8px">${menu ? MENU_NOTE : HOURS_NOTE}</p><p class="sub hourssrc" style="padding-top:2px">${menu ? MENU_SOURCE : HOURS_SOURCE}</p>` : sub('앱이 설치되어 있지 않으면 Apple 지도(웹)로 열어요.', 'padding-top:6px')}<div style="display:flex;justify-content:flex-end;padding-top:4px"><button class="txtbtn" data-a="${act(closeSheet)}">취소</button></div></div>` };
   }
   if (sh.type === 'a2hs') return { body: `<div class="sc">${h2('홈 화면에 추가')}<p class="t15">Safari 공유 → 홈 화면에 추가</p>${sub('홈 화면에서 열면 주소창 없이 앱처럼 쓸 수 있어요. 이 안내는 한 번만 보여 드려요.')}${sheetBtns()}</div>` };
   return null;
@@ -607,10 +664,10 @@ function launchMap(id, i) {
   }, 1500);
 }
 /** 영업시간·후기: 네이버(검색어만)·카카오(검색어+매장 좌표 p)로 넘김. 사용자 위치 없음. 앱이 안 열리면 미설치 안내만(다른 앱·웹으로 넘기지 않음) */
-function launchHours(id, i) {
+function launchHours(id, i, menu = false) {
   const db = EN.db; const store = { lat: db.lat(i), lng: db.lng(i) };
   A.setMapApp(id); UI.sheet = null; render();
-  let url; try { url = MapLinks.hoursUrl(id, db.name[i], db.addr[i], store); } catch { toast(HOURS_NOT_INSTALLED); return; }
+  let url; try { url = menu ? MenuLinks.url(id, db.name[i], db.addr[i], store) : MapLinks.hoursUrl(id, db.name[i], db.addr[i], store); } catch { toast(HOURS_NOT_INSTALLED); return; }
   let left = false; const hide = () => { left = true; };
   document.addEventListener('visibilitychange', hide, { once: true }); window.addEventListener('pagehide', hide, { once: true }); window.addEventListener('blur', hide, { once: true });
   UI.lastHoursUrl = url;
@@ -628,6 +685,7 @@ function screenHtml() {
   const [r, a, b2] = UI.route.split('/');
   switch (r) {
     case 'c01': return C01(); case 'c02': return C02(); case 'c02b': return C02b(); case 'c03': return C03(); case 'p02a': return P02a();
+    case 'taste': return TasteScreen();
     case 'compare': return CompareScreen(); case 'fav': return FavScreen(); case 'info': return InfoScreen();
     case 'doc': return DocScreen(a || ''); case 'store': return StoreScreen(parseInt(a, 10));
     case 'rate': return RateScreen(parseInt(a, 10)); case 'price': return PriceScreen(parseInt(a, 10));
@@ -686,7 +744,7 @@ function maybeA2hs() {
 export async function start() {
   if (CSS.supports('font', '-apple-system-body') && CSS.supports('-webkit-touch-callout', 'none')) document.documentElement.classList.add('ios');
   const big = () => document.documentElement.classList.toggle('big', isBig());
-  restore(); big(); window.addEventListener('resize', () => { big(); render(); });
+  restore(); big(); Data182.load().then(() => { MM.key = null; render(); }); window.addEventListener('resize', () => { big(); render(); });
   const h = location.hash.replace(/^#\//, '');
   UI.route = S.consent.age == null ? 'c01' : (h && !h.startsWith('c0') ? h : 'near');
   history.replaceState({ depth: 0 }, '', '#/' + UI.route);
