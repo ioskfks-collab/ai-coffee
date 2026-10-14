@@ -19,7 +19,7 @@ const ref = () => S.loc || (S.area ? { lat: S.area.lat, lng: S.area.lng, acc: nu
 const manual = () => !S.loc && !!S.area;
 export const MANUAL_AREA_NOTE = '선택한 지역의 중심 기준이라 실제 거리와 다를 수 있어요';
 // Beta 1.8 지도 앱 시트 문구(ui-1.8-map-app-sheet.md 그대로)
-export const HOURS_ROW = '영업시간·별점·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·후기'; // Beta 1.8.1 이름 변경(외부 별점 수집·저장 없음)
+export const HOURS_ROW = '영업시간·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·후기'; // Beta 1.8.1 이름 변경(외부 별점 수집·저장 없음)
 export const HOURS_NOTE = '네이버·카카오에서 검색 결과로 열려요. 주소로 매장을 확인해 주세요.', HOURS_SOURCE = '영업시간·별점·후기는 네이버·카카오 기준이에요.'; // Beta 1.8.1
 export const RATING_BOOST = '별점 반영'; // Beta 1.8.1 가성비 카드 표시(Engine.ratingBoostFlags)
 // Beta 1.8.2 문구(ui/ui-1.8.2.md 확정본, Android Sheet182·Home182와 같음)

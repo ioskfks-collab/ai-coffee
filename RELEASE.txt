@@ -1,7 +1,7 @@
 AI Coffee Web — 릴리스 정보
 
 버전: Beta 1.8.2
-빌드 날짜: 2026-10-15 08:12 (KST)
+빌드 날짜: 2026-10-15 08:20 (KST)
 
 기획 기준: plan-1.8.2.md · ui/ui-1.8.2.md(5장 포함) · CEO2 1.8.2 결정(시즌 KST 경계, 종료일 미정 규칙, 원문 숨김, 약관 링크)
 QA 상태: 미검증(QA 대기)
@@ -14,4 +14,5 @@ QA 상태: 미검증(QA 대기)
 포함 범위: 메뉴 보기(시트 3탭·상세 행), 홈 [주변 카페][나의 즐겨찾기][나의 메뉴], 취향 입력(태그 v1, 일치 0곳 태그 숨김), 시즌 섹션(데이터 0건 → 숨김), 정보 출처 원두·약관 행
 데이터: 배포용 CSV는 scripts/build_data_182.py가 원문(official_phrase·flavor_notes) 없이 생성. 원본 data/1.8.2 그대로
 테스트: Android testDebugUnitTest 136/136, recordRoborazziDebug 136/136, web golden 52/52, value-sort 6/6, beta182 17/17, golden182 160/160, verify WebKit 88/88(1.8.2 화면 직접 조작 9개 포함), 원문 검사 0건(태그 이름과 같은 문구·Compose 이름 제외), 정답 파일 포함 0건
+변경(08:15 CEO2 판정): 매장 상세 행 '영업시간·후기 보기 ›'(골든 hoursRow와 같음). 시트 출처 줄·'별점 반영'은 그대로
 변경(08:06 CEO2 판정): 지도 시트 탭 이름 '영업시간·후기'(golden-1.8 기대값 같이 수정, 백업 backup/pre-1.8.2-ui/golden-1.8.pre-tabname.json)
