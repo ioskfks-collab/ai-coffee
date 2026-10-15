@@ -293,7 +293,7 @@ function favBody() {
 let MM = { key: null, r: null };
 function myMenuBody(L) {
   const tags = S.taste.tags;
-  if (!tags.length) return empty182(H182.EMPTY_NO_TASTE, H182.PICK);
+  if (!tags.length) return (S.taste.updated ? `<div class="rowc tastenone" style="padding-top:6px">${sub('선택 없음')}</div>` : '') + empty182(H182.EMPTY_NO_TASTE, H182.PICK); // 0개 저장 = 명시적 '선택 없음', 취향별 카페 묶음 숨김
   let b = `<div class="rowc" style="padding-top:6px;gap:8px"><div class="flow" style="flex:1;row-gap:4px">${tags.map(t => badge(t)).join('')}</div><div>${btn(H182.EDIT, () => go('taste'))}</div></div>${sub(H182.SORT_LABEL, 'padding-top:6px')}`;
   const key = tags.join() + '|' + L.lat + ',' + L.lng;
   if (MM.key !== key) { const db = EN.db, st = [];
@@ -314,7 +314,7 @@ function TasteScreen() {
   const sel = TASTE.sel; const leave = () => { TASTE.sel = null; back(); };
   const right = `<button class="txtbtn" data-a="${act(() => { TASTE.sel = []; render(); })}">초기화</button>`;
   return topBar('취향 고르기', { onBack: leave, right }) + `<div class="scroll">${sub(H182.TASTE_NOTE, 'padding-top:6px')}${secs.map(([h, ts]) => h3(h) + `<div class="flow tall">${ts.map(t => chip(t, sel.includes(t), () => { TASTE.sel = sel.includes(t) ? sel.filter(x => x !== t) : [...sel, t]; render(); })).join('')}</div>`).join('')}<div style="height:12px"></div></div>
-    <div class="cta">${btn('저장', () => { A.setTaste(sel); TASTE.sel = null; back(); }, 'pri', !sel.length)}</div>`;
+    <div class="cta">${btn('저장', () => { A.setTaste(sel); TASTE.sel = null; back(); }, 'pri', false)}</div>`;
 }
 function seasonSection(brand) {
   const vis = Seasonal.visible(Data182.SEASON.filter(x => x.brand === brand)); if (!vis.length) return '';

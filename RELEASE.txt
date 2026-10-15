@@ -1,11 +1,11 @@
 AI Coffee Web — 릴리스 정보
 
 버전: Beta 1.8.2
-빌드 날짜: 2026-10-15 08:20 (KST)
+빌드 날짜: 2026-10-15 09:10 (KST)
 
 기획 기준: plan-1.8.2.md · ui/ui-1.8.2.md(5장 포함) · CEO2 1.8.2 결정(시즌 KST 경계, 종료일 미정 규칙, 원문 숨김, 약관 링크)
 QA 상태: 미검증(QA 대기)
-셸 캐시 aic-shell-beta-1.8.2-r3-1
+셸 캐시 aic-shell-beta-1.8.2-r3-2
 입력 파일 md5:
 - shared/golden/beta-1.8.2-cases.json 7dcfd139fdc483d242a17fab8fd3cf01 (format_version 1, 배포본에 포함 안 함)
 - data/1.8.2/brand_status.csv a3d896df5e894ebc7026d22c8823e2b9
@@ -13,6 +13,7 @@ QA 상태: 미검증(QA 대기)
 약관 확인 날짜(terms_checked_date): 스타벅스 2026-10-15, 투썸플레이스 2026-10-15, 이디야 2026-10-15, 메가MGC커피 2026-10-15(약관 링크 없음), 컴포즈커피 2026-10-15(약관 링크 없음), 빽다방 2026-10-15(약관 링크 없음), 할리스 2026-10-15, 폴바셋 2026-10-15, 커피빈 2026-10-15, 파스쿠찌 2026-10-15(약관 링크 없음), 하삼동커피 2026-10-15(약관 링크 없음), 텐퍼센트커피 2026-10-15(약관 링크 없음)
 포함 범위: 메뉴 보기(시트 3탭·상세 행), 홈 [주변 카페][나의 즐겨찾기][나의 메뉴], 취향 입력(태그 v1, 일치 0곳 태그 숨김), 시즌 섹션(데이터 0건 → 숨김), 정보 출처 원두·약관 행
 데이터: 배포용 CSV는 scripts/build_data_182.py가 원문(official_phrase·flavor_notes) 없이 생성. 원본 data/1.8.2 그대로
-테스트: Android testDebugUnitTest 136/136, recordRoborazziDebug 136/136, web golden 52/52, value-sort 6/6, beta182 17/17, golden182 160/160, verify WebKit 88/88(1.8.2 화면 직접 조작 9개 포함), 원문 검사 0건(태그 이름과 같은 문구·Compose 이름 제외), 정답 파일 포함 0건
+테스트: Android testDebugUnitTest 137/137, recordRoborazziDebug 137/137(같은 실행), web golden 52/52, value-sort 6/6, beta182 21/21, golden182 160/160, verify WebKit 89/89(0개 저장→재실행 점검 포함), 원문 검사 0건, 정답 파일 포함 0건
+변경(09:10 1.8.2 버그 수정, CEO2 지시): 나의 메뉴 취향 태그 0개 저장 시 이전 값이 남던 문제 수정 — 원인: 취향 화면 [저장]이 0개일 때 비활성(Android enabled=sel.isNotEmpty(), 웹 disabled=!sel.length)이라 저장되지 않음. 이제 0개 저장 = 이전 값 삭제 + 명시적 '선택 없음'(tags 빈 값 + 날짜) 저장, 나의 메뉴에 '선택 없음' 표시·취향별 카페 묶음 숨김, [초기화]는 선택만 지우고 저장 안 함. 재실행 후 선택 없음. 웹 셸 캐시 r3-1 → r3-2
 변경(08:15 CEO2 판정): 매장 상세 행 '영업시간·후기 보기 ›'(골든 hoursRow와 같음). 시트 출처 줄·'별점 반영'은 그대로
 변경(08:06 CEO2 판정): 지도 시트 탭 이름 '영업시간·후기'(golden-1.8 기대값 같이 수정, 백업 backup/pre-1.8.2-ui/golden-1.8.pre-tabname.json)
