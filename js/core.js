@@ -214,11 +214,13 @@ export const PRESET_ORDER = ['BAL', 'NEAR', 'VAL', 'TASTE'];
 const minBy = (arr, fn) => arr.reduce((m, x) => (m == null || fn(x) < fn(m) ? x : m), null);
 
 export class Engine {
-  constructor(db, gp = new GoodPriceTable(new Map())) { this.db = db; this.gp = gp; }
+  constructor(db, gp = new GoodPriceTable(new Map()), ind = null) { this.db = db; this.gp = gp; this.ind = ind; } // ind: Beta 1.8.3 IndPriceTable(beta183.js)
   storeSizes(i, key) {
     const db = this.db;
     if (db.isFr(i)) return MenuTable.brandSizes(db.brandName(i), key);
     if (this.gp.has(i)) { const s = this.gp.sizeFor(i, key); return s ? { list: [s] } : { list: [], none: true, gpOther: true }; }
+    // Beta 1.8.3: 공식 출처로 확인된 개인 카페 가격(출처 URL·확인 날짜 있는 행만). 없으면 제보 → 가격 미확인(size null, 점수 계산 제외·0원 처리 없음)
+    const ip = this.ind ? this.ind.sizeFor(db.name[i], db.addr[i], key) : null; if (ip) return { list: [ip] };
     const r = db.rep.get(i);
     if (!r) return { list: [], none: true };
     if (r.pending) return { list: [], pending: true };
@@ -427,6 +429,7 @@ export function buildEngine(text) {
   const db = StoreDb.load(s.stores, s.ratings);
   const en = new Engine(db, GoodPriceTable.load(s.good_price, db.size));
   en.regions = s.regions ? Regions.parse(s.regions) : [];
+  en.indText = s.ind_prices || ''; // Beta 1.8.3: app.js가 IndPriceTable.parse로 설치(순환 import 회피)
   return en;
 }
 
@@ -444,7 +447,10 @@ export const ID_VER = 3;
 /** 압축 변환표(지운 행 목록): 남은 행은 old − (old보다 작은 지운 행 수), 중복으로 합쳐진 행은 남긴 행의 새 id, 비커피 행은 없음(null) */
 export function parseIdMap(text) {
   const lines = text.split('\n'); const h = lines[0].split('|');
-  if (h[0] !== '#AICIDMAP' || h[1] !== 'r2' || h[3] !== 'r3') throw new Error('id 변환표 형식 오류');
+  // Beta 1.8.3: '#AICIDMAP|rA|<옛 수>|rB|<새 수>' (B = A+1). r2→r3, r3→r4 같은 형식
+  const fa = /^r(\d+)$/.exec(h[1] || ''), fb = /^r(\d+)$/.exec(h[3] || '');
+  if (h[0] !== '#AICIDMAP' || !fa || !fb || +fb[1] !== +fa[1] + 1) throw new Error('id 변환표 형식 오류');
+  const fromRev = +fa[1], toRev = +fb[1];
   const oldSize = +h[2], newSize = +h[4]; const removed = [], target = new Map();
   for (const l of lines.slice(1)) { if (!l) continue; const [a, b] = l.split(','); const o = +a; removed.push(o); if (b !== '' && b != null) target.set(o, +b); }
   removed.sort((x, y) => x - y); const rmSet = new Set(removed);
@@ -458,10 +464,11 @@ export function parseIdMap(text) {
     }
     return null;
   };
-  return { oldSize, newSize, map, merged: o => target.has(o) };
+  return { oldSize, newSize, fromRev, toRev, map, merged: o => target.has(o) };
 }
 /** 1.7 저장값(o)의 즐겨찾기·내 별점·제출함 매장 id를 새 id로. 변환표에 없는 id는 조용히 버림. o를 바꾸지 않고 새 객체 반환 */
-export function migrateIds(o, idMap) {
+export function migrateIds(o, idMap, to = ID_VER) {
+  const ID_VER = to; // 이 단계를 마친 뒤 dbIdVer
   if ((+o.dbIdVer || 0) >= ID_VER) return { o, stats: null };
   const hasData = (Array.isArray(o.favs) && o.favs.length) || (o.myRatings && typeof o.myRatings === 'object' && Object.keys(o.myRatings).length) || (Array.isArray(o.outbox) && o.outbox.length);
   if (!hasData) return { o: { ...o, dbIdVer: ID_VER }, stats: null };
@@ -485,4 +492,14 @@ export function migrateIds(o, idMap) {
   }
   return { o: { ...o, favs, myRatings: rOut, outbox, dbIdVer: ID_VER },
     stats: { favs: [favIn.length, favs.length], ratings: [Object.keys(rIn).length, Object.keys(rOut).length], outbox: [obIn.length, outbox.length] } };
+}
+/** Beta 1.8.3: 단계 [[to, () => idMap], …]를 차례로(r2→r3 → r3→r4). 변환표 r 번호가 단계와 다르면 예외(호출 쪽에서 원래 값 유지) */
+export function migrateIdsAll(o, steps) {
+  for (let k = 1; k < steps.length; k++) if (steps[k][0] !== steps[k - 1][0] + 1) throw new Error('변환 단계 순서 오류');
+  const stats = [];
+  for (const [to, mk] of steps) {
+    const r = migrateIds(o, () => { const m = mk(); if (m.toRev !== to || m.fromRev !== to - 1) throw new Error(`변환표 r${m.fromRev}→r${m.toRev} ≠ 단계 ${to}`); return m; }, to);
+    o = r.o; if (r.stats) stats.push(r.stats);
+  }
+  return { o, stats };
 }

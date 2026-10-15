@@ -1,5 +1,17 @@
 AI Coffee Web — 릴리스 정보
 
+버전: Beta 1.8.3 (Android versionCode 12) — 독립 QA 통과(2026-10-15 20:5x KST), 배포
+빌드 날짜: 2026-10-15 20:47 (KST) (출처 표시 수정 재빌드)
+APK: android/AI-Coffee-Beta-1.8.3-debug.apk md5 e980fc8248e66dbfb6c3e9dc7c956da4 (15,614,643바이트) · INTERNET 권한 없음
+웹: 셸 캐시 aic-shell-beta-1.8.3-r3-2, DB data/aicoffee-db-r4.txt.gz md5 7b9722c776ff1e96908c74116ec7bee6, DB 캐시 aic-db-2026-10-14-r4
+매장 DB r4: 143,670곳 = r3 103,656 − 폐업 735 + 추가 40,749
+매장별 출처 표시(r3-2 수정): 매장 번호 0~102,920 = 소상공인시장진흥공단 상가(상권)정보 기준일 2026-06-30 / 102,921~143,669(추가 40,749곳) = 행정안전부 휴게음식점 인허가 (data.go.kr 15006730) 기준일 2026-10-14. 매장 상세·근처 목록 하단·데이터 출처 안내·정보 화면에 반영(Android Store/Near/Info.kt, 웹 js/app.js)
+1.8.3 기능: 매장 상세 '사진 보기 ›'(네이버·카카오 지도 앱 검색 화면, 사진 저장·표시 없음), '가격 미확인', 가성비 순위 제외 안내, 폐업 735곳 제거, id 변환 r3→r4
+테스트: Android testDebugUnitTest 150/150(1 건너뜀), web golden 53/53, golden182 160/160, golden183 60/60, value-sort 6/6, beta182 21/21, verify WebKit 90/90, 독립 QA(qa/1.8.3-qa-report.md): 표본 300/300·폐업 잔존 0·r3→r4 이전·출처 표시 통과
+미검증: 에뮬레이터·갤럭시 실기기·iPhone Safari 실기기
+
+---- 이전 ----
+
 버전: Beta 1.8.2
 빌드 날짜: 2026-10-15 09:10 (KST)
 
