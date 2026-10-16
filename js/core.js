@@ -187,7 +187,10 @@ export const Geo = {
   walkText: d => `도보 ${Geo.walkMin(d)}분(추정)`,
   /** 카드·상세 거리: '약' 없이(예: 320m · 도보 5분(추정)) */
   distPlain: d => Geo.distText(d).replace(/^약 /, ''),
-  distWalk: d => `${Geo.distPlain(d)} · ${Geo.walkText(d)}`,
+  /** Beta 1.8.6: 도보 시간 표시 상한(반올림 전 직선거리 m, 공용 정답 shared/golden/walk-limit-1.8.6.json). 3000m 이하 표시(3.0km 포함), 넘으면 숨김 */
+  WALK_LIMIT_M: 3000,
+  showWalk: d => d <= 3000,
+  distWalk: d => Geo.showWalk(d) ? `${Geo.distPlain(d)} · ${Geo.walkText(d)}` : Geo.distPlain(d),
 };
 
 // ---------- Engine.kt ----------

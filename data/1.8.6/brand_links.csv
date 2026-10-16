@@ -1,0 +1,13 @@
+brand,link_type,url,official_domain,http_status,final_url,checked_date,status,note
+스타벅스,이벤트/프로모션,https://www.starbucks.co.kr/whats_new/campaign_list.do,www.starbucks.co.kr,200,https://www.starbucks.co.kr/whats_new/campaign_list.do,2026-10-16,확인,
+투썸플레이스,공식홈,https://www.twosome.co.kr/,www.twosome.co.kr,200,https://www.twosome.co.kr/,2026-10-16,확인,"이벤트 목록 페이지 없음(/cs/eventList.do 404), 공식홈 확인·연결"
+이디야,이벤트/프로모션,https://www.ediya.com/contents/event.html,www.ediya.com,200,https://www.ediya.com/contents/event.html,2026-10-16,확인,
+메가MGC커피,공식홈,https://www.mega-mgccoffee.com/,www.mega-mgccoffee.com,200,https://www.mega-mgccoffee.com/,2026-10-16,확인,"이벤트 목록 페이지 없음(/event/ 404), 공식홈 확인·연결"
+컴포즈커피,이벤트/프로모션,https://composecoffee.com/event,composecoffee.com,200,https://composecoffee.com/event,2026-10-16,확인,
+빽다방,이벤트/프로모션,https://paikdabang.com/news/?cate=event,paikdabang.com,200,https://paikdabang.com/news/?cate=event,2026-10-16,확인,공식홈 메뉴의 링크
+할리스,이벤트/프로모션,https://www.hollys.co.kr/news/event/list.do,www.hollys.co.kr,200,https://www.hollys.co.kr/news/event/list.do,2026-10-16,확인,
+폴바셋,공식홈,https://www.baristapaulbassett.co.kr/,www.baristapaulbassett.co.kr,200,https://www.baristapaulbassett.co.kr/,2026-10-16,확인,"이벤트 목록 페이지 없음(/news/Event.pb 404), 공식홈 확인·연결"
+커피빈,소식,https://www.coffeebeankorea.com/news/list.asp,www.coffeebeankorea.com,200,https://www.coffeebeankorea.com/news/list.asp,2026-10-16,확인,'커피빈 소식' 페이지(이벤트 전용 아님)
+파스쿠찌,이벤트/프로모션,https://www.pascucci.co.kr/event/eventList.asp,www.pascucci.co.kr,200,https://www.pascucci.co.kr/event/eventList.asp,2026-10-16,확인,10-15에는 인증서 오류였으나 10-16 curl 기본 인증서 검증 통과
+하삼동커피,공식홈,https://www.hasamdongcoffee.com/,www.hasamdongcoffee.com,000,,2026-10-16,미확인,"TLS 연결 실패(dh key too small), 우회하지 않음"
+텐퍼센트커피,이벤트/프로모션,https://tenpercentcoffee.com/bbs/board.php?bo_table=event2,tenpercentcoffee.com,200,https://tenpercentcoffee.com/bbs/board.php?bo_table=event2,2026-10-16,확인,공식홈 메뉴의 링크

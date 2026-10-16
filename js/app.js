@@ -4,10 +4,11 @@ import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radiu
 import { I } from './icons.js';
 import { ID_MAP_R2_R3, ID_MAP_R3_R4 } from './idmap.js';
 import { MenuLinks, Seasonal, TasteTags, MyMenu, TastePrefs, Data182 } from './beta182.js';
-import { Promotions, PromoData, Promo185 } from './promotions.js';
+import { Promotions, PromoData, Promo185, recurLabel } from './promotions.js';
+import { BrandLinks, LinkData, P9 } from './brandlinks.js';
 import { PhotoLinks, IndPriceTable, indLabel, indSourceLine } from './beta183.js';
 
-export const VERSION = '1.8.5';
+export const VERSION = '1.8.6';
 const DB_URL = 'data/aicoffee-db-r4.txt.gz', DB_CACHE = 'aic-db-2026-10-14-r4', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
@@ -15,7 +16,7 @@ const S = { loaded: false, ready: false, dbError: null, consent: {}, loc: null, 
   filter: defaultFilter(), preset: 'BAL', inc: defaultInc(), favs: [], myRatings: {}, outbox: [], mapApp: null,
   area: null, taste: TastePrefs.empty(), homeCat: 'near' }; // area: Beta 1.7 수동 시·구(메모리 전용, persist 안 함)
 let EN = null, did = '';
-const UI = { route: 'near', sheet: null, toast: null };
+const UI = { route: 'near', sheet: null, toast: null, promoOpen: new Set() };
 /** 목록·거리 기준점: GPS가 있으면 GPS, 없으면 고른 시·구 중심점 */
 const ref = () => S.loc || (S.area ? { lat: S.area.lat, lng: S.area.lng, acc: null } : null);
 const manual = () => !S.loc && !!S.area;
@@ -207,7 +208,7 @@ function cardMeta(e, showR, outside, boost = false) {
   if (showR) items.push(ratingInline(e.t));
   if (boost) items.push(`<span class="boost">${RATING_BOOST}</span>`);
   if (outside) items.push('<span class="sub">1km 밖</span>');
-  if (hasD) { items.push(`<span class="dist numtxt">${Geo.distPlain(e.d)}</span>`); items.push(`<span class="walk sub">${Geo.walkText(e.d)}</span>`); }
+  if (hasD) { items.push(`<span class="dist numtxt">${Geo.distPlain(e.d)}</span>`); if (Geo.showWalk(e.d)) items.push(`<span class="walk sub">${Geo.walkText(e.d)}</span>`); }
   if (!items.length) return '';
   return `<div class="l3 meta">${items.map((x, k) => k < items.length - 1 ? `<span class="mi">${x}<span class="sep">&nbsp;·</span></span> ` : `<span class="mi">${x}</span>`).join('')}</div>`;
 }
@@ -328,18 +329,45 @@ function TasteScreen() {
     <div class="cta">${btn('저장', () => { A.setTaste(sel); TASTE.sel = null; back(); }, 'pri', false)}</div>`;
 }
 // Beta 1.8.5 공식 프로모션·이벤트: 기존 흰 카드(box notice)만, 광고형 배지·색 없음. 추천·정렬과 무관
-function promoCard(p) {
-  return box(`<p class="b">${esc(p.title)}</p><p style="margin-top:2px">${esc(p.benefitText)}</p>${sub(`기간 ${esc(Promotions.period(p))} · ${esc(p.scope)}`)}${sub(esc(Promo185.sourceLine(p)))}<div class="rowc" style="min-height:48px"><a class="txtbtn c promolink" style="min-height:48px;display:inline-flex;align-items:center" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener noreferrer">${Promo185.LINK}</a><span class="sub">&nbsp;${Promo185.NET_NOTE}</span></div>`, 'notice promocard');
+function promoCard(p, showBrand = true) {
+  // Beta 1.8.6 P8(ui §6-1·§8-3): 브랜드→제목→요일 칩→혜택(2줄 접기)→기간→원문 범위 상자(scope_note 그대로, 비면 숨김)→출처 줄→공식 출처 보기. 토글 하나로 혜택·범위 상자 함께 펼침
+  const open = UI.promoOpen.has(p.id);
+  const tog = act(() => { open ? UI.promoOpen.delete(p.id) : UI.promoOpen.add(p.id); render(); });
+  return `<div class="promocard ${open ? 'open' : ''}" data-pid="${esc(p.id)}">${showBrand ? `<p class="pc-brand">${esc(p.brand)}</p>` : ''}<p class="pc-title">${esc(p.title)}</p>${p.recurWeekday ? `<div class="promorecur">${badge(recurLabel(p.recurWeekday))}</div>` : ''}<p class="foldtxt pc-benefit ${open ? 'open' : ''}">${esc(p.benefitText)}</p><button class="txtbtn c foldbtn pc-row" ${open ? '' : 'hidden'} aria-expanded="${open}" data-a="${tog}">${open ? Promo185.LESS : Promo185.MORE}</button><p class="pc-period">기간 ${esc(Promotions.period(p))} · ${esc(p.scope)}</p>${p.scopeNote ? `<div class="pc-scope"><p class="pc-scope-l">원문 범위·조건</p><p class="pc-scope-b foldscope ${open ? 'open' : ''}">${esc(p.scopeNote)}</p></div>` : ''}<p class="pc-src">${esc(Promo185.sourceLine(p))}</p><a class="txtbtn c promolink pc-row" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener noreferrer">${Promo185.LINK}<span class="sub">&nbsp;${Promo185.NET_NOTE}</span></a></div>`;
+}
+// Beta 1.8.6 P9: 외곽선 버튼(전체 폭 48dp)
+const p9Button = fn => `<button class="p9btn" data-a="${act(fn)}">${P9.BUTTON}</button>`;
+function openBrandLink(row) { if (row && row.tappable) openSheet({ type: 'link', row }); else go('brandlinks'); }
+/** 매장 상세: 그 브랜드 링크가 있으면 이동 확인 시트로 바로, 없으면(미확인·목록 실패) 브랜드 목록 화면 */
+function p9Detail(brand) { return `<div class="p9detail">${p9Button(() => openBrandLink(BrandLinks.forBrand(LinkData.rows, brand)))}</div>`; }
+function launchLink(sh) {
+  let w = null; try { w = window.open(sh.row.url, '_blank'); } catch { w = null; }
+  if (!w) { sh.failed = true; render(); return; }
+  try { w.opener = null; } catch { } UI.sheet = null; render();
+}
+async function copyText(t) { try { await navigator.clipboard.writeText(t); return true; } catch { const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); let ok = false; try { ok = document.execCommand('copy'); } catch { } a.remove(); return ok; } }
+function BrandLinksScreen() {
+  const rows = LinkData.rows;
+  const b = !LinkData.ready || LinkData.loading ? `<div class="p9loading">${'<i></i>'.repeat(3)}</div>`
+    : LinkData.failed ? `<div class="empty p9fail"><p class="b t15">${P9.FAIL}</p><p class="sub">${P9.FAIL_SUB}</p><button class="btn sec p9retry" style="min-height:48px;margin-top:8px" data-a="${act(() => { LinkData.load().then(render); render(); })}">${P9.RETRY}</button></div>`
+    : `<p class="sub p9guide">${BrandLinks.allUnconfirmed(rows) ? P9.NONE : P9.GUIDE}</p><div class="p9list">${rows.map(r => r.tappable
+      ? `<button class="p9row" data-a="${act(() => openSheet({ type: 'link', row: r }))}"><span class="p9t"><span class="p9b">${esc(r.brand)}</span><span class="p9s">${esc(r.label)}</span></span><span class="p9ic" aria-hidden="true">↗</span></button>`
+      : `<div class="p9row off" aria-disabled="true"><span class="p9t"><span class="p9b">${esc(r.brand)}</span><span class="p9s">${esc(r.label)}</span></span></div>`).join('')}</div>`;
+  return topBar(P9.TITLE, { onBack: back }) + `<div class="scroll"><div class="p9wrap">${b}</div></div>`;
 }
 export function promoSection(brand, items = PromoData.items, now = Date.now()) {
   const vis = brand ? Promotions.forBrand(items, brand, now).sort((a, b) => a.endDate < b.endDate ? -1 : a.endDate > b.endDate ? 1 : a.id < b.id ? -1 : 1) : [];
-  return vis.length ? `<section class="promo">${h3(Promo185.SECTION)}${vis.map(promoCard).join('')}</section>` : '';
+  if (PromoData.failed) return ''; // Beta 1.8.6: 불러오기 실패면 섹션째 숨김
+  return vis.length ? `<section class="promo">${h3(Promo185.SECTION)}${vis.map(p => promoCard(p)).join('')}</section>` : '';
 }
 function PromoScreen() {
   const g = Promotions.grouped(PromoData.items, Date.now());
-  const b = !PromoData.ready ? '<p>불러오는 중…</p>' : !g.length ? `<div class="empty promoempty">${emptyCup()}<p class="b" style="margin-top:8px">${Promo185.EMPTY}</p>${sub('데이터 확인일 ' + (PromoData.checked || '-'))}</div>`
-    : g.map(([br, ps]) => `<p class="b promobrand" style="font-weight:800;padding-top:14px">${esc(br)}</p>` + ps.map(promoCard).join('')).join('');
-  return topBar(Promo185.SECTION, { sub: '브랜드 공식 홈페이지 기준 · 추천 순위와 무관', onBack: back }) + `<div class="scroll">${b}${sub('확인한 공식 출처만 실어요. 끝난 행사는 자동으로 숨겨요. 매장별로 참여가 다를 수 있어요.')}</div>`;
+  // Beta 1.8.6(Q185-01): 실패는 목록 영역 안 문구 + 48dp [다시 시도](별도 화면 없음). 0건 확인일은 날짜 있을 때만
+  const b = !PromoData.ready || PromoData.loading ? `<p class="promoloading">${Promo185.LOADING}</p>`
+    : PromoData.failed ? `<div class="empty promofail">${emptyCup()}<p class="b" style="margin-top:8px">${Promo185.FAIL}</p><button class="btn sec promoretry" style="min-height:48px;margin-top:8px" data-a="${act(() => { PromoData.load().then(render); render(); })}">${Promo185.RETRY}</button></div>`
+    : !g.length ? `<div class="empty promoempty">${emptyCup()}<p class="b" style="margin-top:8px">${Promo185.EMPTY}</p>${PromoData.checked ? `<p class="sub promochecked">${esc(Promo185.checkedLine(PromoData.checked))}</p>` : ''}</div>`
+    : g.map(([br, ps]) => `<p class="b promobrand" style="font-weight:800;padding-top:14px">${esc(br)}</p>` + ps.map(p => promoCard(p)).join('')).join('');
+  return topBar(Promo185.SECTION, { sub: '브랜드 공식 홈페이지 기준 · 추천 순위와 무관', onBack: back }) + `<div class="scroll">${p9Button(() => go('brandlinks'))}${b}${sub('확인한 공식 출처만 실어요. 끝난 행사는 자동으로 숨겨요. 매장별로 참여가 다를 수 있어요.')}</div>`;
 }
 function seasonSection(brand) {
   const vis = Seasonal.visible(Data182.SEASON.filter(x => x.brand === brand)); if (!vis.length) return '';
@@ -392,9 +420,9 @@ function StoreScreen(i) {
   const db = EN.db; const R0 = ref(); const d = R0 ? Geo.dist(db, i, R0) : null; const t = EN.taste(i); const mk = S.filter.menu;
   const cmp = k => () => { A.setFilter({ ...S.filter, menu: k }); go('compare'); };
   let b = `<h2 class="title" style="padding-top:6px;white-space:normal">${esc(db.name[i])}</h2>
-    <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distPlain(d) : '위치 미정'}</span>${d != null ? ' · <span class="nowrap">' + Geo.walkText(d) + '</span>' : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
+    <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distPlain(d) : '위치 미정'}</span>${d != null && Geo.showWalk(d) ? ' · <span class="nowrap">' + Geo.walkText(d) + '</span>' : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
     <p>주소: ${esc(db.addr[i])}</p>
-    <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + (db.isFr(i) ? seasonSection(db.brandName(i)) + promoSection(db.brandName(i)) : '') + h3('메뉴 가격');
+    <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + (db.isFr(i) ? seasonSection(db.brandName(i)) + promoSection(db.brandName(i)) + p9Detail(db.brandName(i)) : '') + h3('메뉴 가격');
   if (db.isFr(i)) {
     const br = db.brandName(i);
     const rows = MenuTable.KEYS.map(k => [k, MenuTable.brandSizes(br, k)]).filter(([, ss]) => ss && !ss.notSold);
@@ -673,6 +701,8 @@ function sheetContent() {
       ${hours ? '' : sub('고른 지도 앱으로 이동해요. 매장 위치(목적지)만 전달하고 내 위치 좌표는 보내지 않아요. 출발지는 지도 앱이 현재 위치로 정해요.')}<div style="height:6px"></div>${rows}
       ${hours ? `<p class="t15 hoursnote" style="padding-top:8px">${menu ? MENU_NOTE : photo ? PHOTO_NOTE : HOURS_NOTE}</p><p class="sub hourssrc" style="padding-top:2px">${menu ? MENU_SOURCE : photo ? PHOTO_SOURCE : HOURS_SOURCE}</p>` : sub('앱이 설치되어 있지 않으면 Apple 지도(웹)로 열어요.', 'padding-top:6px')}<div style="display:flex;justify-content:flex-end;padding-top:4px"><button class="txtbtn" data-a="${act(closeSheet)}">취소</button></div></div>` };
   }
+  if (sh.type === 'link') { const r = sh.row; // Beta 1.8.6 P9 이동 확인(§7-3·§8-2): 버튼 전체 폭 세로, [이동하기] 맨 아래
+    return { body: `<div class="sc p9sheet"><p class="p9ask">${esc(P9.ask(r.brand))}</p><p class="p9url">${esc(r.url)}</p><p class="sub">${P9.SHEET_NOTE}</p>${sh.failed ? `<p class="p9openfail">${P9.OPEN_FAIL}</p><button class="btn sec p9copy" data-a="${act(async () => { if (await copyText(r.url)) toast(P9.COPIED); })}">${P9.COPY}</button>` : ''}<div class="p9btns"><button class="btn p9cancel" data-a="${act(closeSheet)}">${P9.CANCEL}</button><button class="btn pri p9go" data-a="${act(() => launchLink(sh))}">${P9.GO}</button></div></div>` }; }
   if (sh.type === 'a2hs') return { body: `<div class="sc">${h2('홈 화면에 추가')}<p class="t15">Safari 공유 → 홈 화면에 추가</p>${sub('홈 화면에서 열면 주소창 없이 앱처럼 쓸 수 있어요. 이 안내는 한 번만 보여 드려요.')}${sheetBtns()}</div>` };
   return null;
 }
@@ -714,13 +744,15 @@ function screenHtml() {
   switch (r) {
     case 'c01': return C01(); case 'c02': return C02(); case 'c02b': return C02b(); case 'c03': return C03(); case 'p02a': return P02a();
     case 'taste': return TasteScreen();
-    case 'compare': return CompareScreen(); case 'fav': return FavScreen(); case 'info': return InfoScreen(); case 'promos': return PromoScreen();
+    case 'compare': return CompareScreen(); case 'fav': return FavScreen(); case 'info': return InfoScreen(); case 'promos': return PromoScreen(); case 'brandlinks': return BrandLinksScreen();
     case 'doc': return DocScreen(a || ''); case 'store': return StoreScreen(parseInt(a, 10));
     case 'rate': return RateScreen(parseInt(a, 10)); case 'price': return PriceScreen(parseInt(a, 10));
     case 'report': return ReportScreen(parseInt(a, 10), b2 || ''); case 'done': return DoneScreen(a || '');
     default: UI.route = 'near'; return NearScreen();
   }
 }
+// Beta 1.8.6: 혜택 문구 2줄 접기 — 접힌 문구가 넘칠 때만 '더 보기' 표시
+function foldCheck() { root.querySelectorAll('.promocard:not(.open)').forEach(c => { const b = c.querySelector('.foldbtn'); if (!b) return; const over = el => el && el.scrollHeight > el.clientHeight + 1; b.hidden = !(over(c.querySelector('.foldtxt')) || over(c.querySelector('.foldscope'))); }); }
 export function render() {
   if (!S.loaded) return;
   if (needsAutoFix()) queueMicrotask(autoFix);
@@ -739,6 +771,7 @@ export function render() {
   const ns = document.querySelector('.sheet .sc'); if (ns && UI.sheetScroll === 0) { UI.sheetScroll = 1; } else if (ns) ns.scrollTop = sheetTop;
   if (focusIn) { const el = root.querySelector(`[data-in="${focusIn}"]`); if (el) { el.focus(); const v = el.value; try { el.setSelectionRange(v.length, v.length); } catch { } } }
   UI.scrollReset = false;
+  foldCheck();
   if (tabs && UI.maybeA2hs) { UI.maybeA2hs = false; maybeA2hs(); }
 }
 root.addEventListener('click', e => {
@@ -772,7 +805,7 @@ function maybeA2hs() {
 export async function start() {
   if (CSS.supports('font', '-apple-system-body') && CSS.supports('-webkit-touch-callout', 'none')) document.documentElement.classList.add('ios');
   const big = () => document.documentElement.classList.toggle('big', isBig());
-  restore(); big(); Data182.load().then(() => { MM.key = null; render(); }); PromoData.load().then(render); window.addEventListener('resize', () => { big(); render(); });
+  restore(); big(); Data182.load().then(() => { MM.key = null; render(); }); PromoData.load().then(render); LinkData.load().then(render); window.addEventListener('resize', () => { big(); render(); });
   const h = location.hash.replace(/^#\//, '');
   UI.route = S.consent.age == null ? 'c01' : (h && !h.startsWith('c0') ? h : 'near');
   history.replaceState({ depth: 0 }, '', '#/' + UI.route);

@@ -1,13 +1,57 @@
 AI Coffee Web — 릴리스 정보
 
-버전: Beta 1.8.5 (Android versionCode 14) — 테스트 통과, QA 전, 배포 안 함
+버전: Beta 1.8.6 next (Android versionCode 16) — P8·P9 빌드, 테스트 결과는 아래, QA 전, 배포 안 함
+기획 백업(build-dist): backup/plan-1.8.6.build-5.md md5 7f9bdc5ede19c87fc0d9d4b99ec1ed10 (2026-10-16 18:36 KST)
+빌드: qa/builds/1.8.6/build-1836/ (2026-10-16 18:36~18:4x KST, 모든 로그 첫 줄 src=ab3b4814ef4af72443be044e81e475f0)
+입력 md5(빌드 시작 시 실측, qa/builds/1.8.6/build-1836/00-inputs-md5.log): plan-1.8.6.md 7f9bdc5ede19c87fc0d9d4b99ec1ed10 · ui/ui-1.8.6.md 091ff09080ca70c10773b9317b8fff39 · data/1.8.6/brand_links.csv 77df5e748a6934ffb4eb979113498b96 · data/1.8.6/promotions.csv 4a17930b86b0ce60de308bd10c55bb17 · data/1.8.6/brand_official_domains.csv e513632aa422babcf4a86a391ae1e396 · 정답 shared/golden/scope-note-1.8.6.json a49fa5b5220f83f6accf7ccdc563479e · shared/golden/brand-links-1.8.6.json df61158328f0f6d6ec6709aa76248294
+APK: android/AI-Coffee-Beta-1.8.6-debug.apk md5 e1f0c64b299baafa633f101c951cd363 (15,321,044바이트) · versionCode 16 · aapt 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION(INTERNET 없음) · assets promotions.csv 4a17930b·brand_links.csv 77df5e74
+웹: web-dist-1.8.6/ 30파일(목록 qa/builds/1.8.6/build-1836/web-dist-1.8.6-files.md5 md5 445e68d10fee943a9538970ebdbb2351, RELEASE.txt 제외 29파일), sw.js cf87dcf853f1e4ac8a10d60ed1de910c, 셸 캐시 aic-shell-beta-1.8.6-r5, data/1.8.5 제외(앱이 쓰는 data/1.8.2·1.8.6만), web-dist/(1.8.5) 그대로(sw.js 762e2ee9)
+변경: P8 카드(브랜드·제목·혜택 2줄·기간·원문 범위 상자 scope_note 그대로, 토글 하나, '공식 출처 · 데이터 확인일') · P9 '공식 프로모션·이벤트 확인하기 ›'(목록 상단·매장 상세), 브랜드 목록(CSV 순서, 이벤트 7·소식 1·공식 홈 3·비활성 1), 이동 확인 시트, 로딩·읽기 실패·브라우저 실패·전부 미확인 · 빌드 검사: 링크(https·공식 도메인), 번들 asset md5 = data/1.8.6, 행 누락 · 정렬·추천 코드 변경 없음
+테스트: Android testDebugUnitTest 203건(통과 202·건너뜀 1·실패 0; P8P9UiTest 11·P8P9DataTest 4·BrandLinksGateTest 2) · promoRowsCheck·assembleDebug(linkGate 포함) 성공 · web verify 89/89·verify-185 10/10·verify-186 17/17·verify-p8p9 44/44·promo186 73/73·golden 53/53·promo185 30/30·scope-note 16/16·p8p9-check 42/42·check-promo-rows 10/10·check-links 12행 오류 0
+스크린샷: qa/builds/1.8.6/build-1836/shots/ web-p8-card-collapsed·expanded, web-p9-brand-list·confirm-sheet·open-fail·detail-sheet
+미검증: 독립 QA, 에뮬레이터·갤럭시 실기기, 11개 링크 실제 접속(QA 담당), Android 화면 캡처(Roborazzi 기록 모드로 안 돌림)
+
+---- 이전 ----
+
+버전: Beta 1.8.6 (Android versionCode 15) — 재빌드(data/1.8.6) 테스트 통과, QA 전, 배포 안 함
+빌드 날짜: 2026-10-16 17:43 (KST) APK · 17:45 web-dist-1.8.6 (CEO2 지시 17:40 재빌드, 프로모션 가독성 변경 없음)
+기획 기준(빌드 시 md5sum 측정 17:45 KST): plan-1.8.6.md 1d80a3a3b27878e42549432407cead5a · ui/ui-1.8.6.md 6f8febe3c6efd123e6378bb2754638ad (지시 중 기대값 707d082a→74805614→3cb428c7, ui a5bb51de→c4f9659f로 바뀜; 17:40 측정 plan 74805614·ui a5bb51de, 17:45 측정값은 위)
+APK: android/AI-Coffee-Beta-1.8.6-debug.apk md5 6db71cd401c5478a09be8d3bf116b5db (15,666,578바이트) · versionCode 15 유지(미배포 재빌드라 올리지 않음) · aapt 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION(INTERNET 없음) · 이전 101ab32a(data/1.8.5)는 대체됨
+웹: web-dist-1.8.6/ (web/scripts/build-dist.sh 생성, web-dist/ 1.8.5 그대로), 셸 캐시 aic-shell-beta-1.8.6-r4, DB·DB 캐시 1.8.5와 같음
+프로모션 데이터: data/1.8.6/promotions.csv md5 e78d56703cc42a2433102f9f1d62449c, 10행(모두 scope 일부매장, 거부 0; P185-001~006·P186-001~004, P186-002 폴바셋 recur_weekday=5) → APK assets·web/data/1.8.6 (scripts/copy_promotions_1_8_6.sh). 빌드 검사 promoRowsCheck·check-promo-rows 10/10
+재빌드 테스트(17:43~17:45 KST): Android testDebugUnitTest 180건 중 179 통과·1 건너뜀·실패 0, web verify WebKit 89/89·verify-185 10/10·verify-186 17/17·promo186 73/73·promo185 29/29·golden 53/53 · 로그 qa/builds/1.8.6/rebuild-1740/
+(이전 1.8.6 빌드 — data/1.8.5, APK 101ab32a, 대체됨)
+빌드 날짜: 2026-10-16 16:28 (KST) (16:25 APK 재빌드 · 16:28 web-dist-1.8.6 재생성)
+기획 기준(16:29 KST 재확인): plan-1.8.6.md md5 151818415b6bb299b03f726a01384d39 · ui/ui-1.8.6.md md5 06cffd6bcd8d986596daea49378b81b1 · CEO2 최종 16:24: recur_weekday ISO 1~7 유지(0~6 변경 취소, 코드는 0~6으로 바꾼 적 없음), 기간 줄 1.8.5 형식·0건 문구 유지(plan P5). 작업 중 md5 변화: plan ca2d0f55→099c17fb→906d686c→afce51e4→(c8062f26 지시)→15181841, ui …→d53fb15f→06cffd6b
+APK: android/AI-Coffee-Beta-1.8.6-debug.apk md5 101ab32a18e0211ff15d28d00e870c16 (15,666,578바이트, 16:25 재빌드 결과 md5 같음 — Android 코드 변경 없음. 16:20 빌드 101ab32a는 16:25 빌드로 대체됨, 바이트 동일) · aapt 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION(INTERNET 없음)
+웹: 산출물 web-dist-1.8.6/(기존 web-dist/는 1.8.5 그대로, 백업 qa/builds/1.8.5-webdist-backup), 셸 캐시 aic-shell-beta-1.8.6-r3-1, manifest '(Web Beta 1.8.6)', DB·DB 캐시 1.8.5와 같음
+프로모션 데이터: data/1.8.5/promotions.csv md5 e4b9e2c173ea23024d996086f9f5be36 그대로(data/next 미사용, APK assets 동일 md5)
+변경:
+- 빈 상태(실제 0건) '데이터 확인일 YYYY-MM-DD' = 파일 checked_date 최신값, 없으면 줄 숨김('-' 제거, 웹의 last-modified '(파일 날짜)' 대체 제거)
+- 불러오기 실패(읽기·파싱 실패) Q185-01: 목록 영역 안 '프로모션 정보를 불러오지 못했어요' + 48dp [다시 시도] → 로딩 표시 → 성공 시 목록/0건, 재실패 시 같은 문구. 확인일 없음. 매장 상세 섹션 숨김. 별도 화면 없음
+- 혜택 문구 2줄 접기 + 48dp '더 보기'/'접기'(2줄 이하면 버튼 없음, 출처·확인일 줄 항상 보임)
+- 도보 시간: 반올림 전 직선거리 ≤ 3000m 표시, 초과 숨김(카드·상세). 공용 정답 shared/golden/walk-limit-1.8.6.json md5 0d333ff3517dcb73dd0a9b1ce788e032
+- recur_weekday(CSV 맨 끝 선택 열, ISO 1=월…7=일, KST): 기간 안 해당 요일만 표시, 제목 아래 칩 '매주 X요일'(상수 RECUR_LABEL 하나), 빈 값=매일, 잘못된 값=행 숨김, 1.8.5 CSV(열 없음) 그대로 읽음. 공용 정답 shared/golden/promo-recur-1.8.6.json md5 d65f93c4c76a401ecbbfea30ed92eac3(QA 경계 추가: 9/3·9/4, 10/29·10/30·10/31, 금 23:59:59/토 00:00 KST, 10/15·16·17·23, 잘못된 값 0·8·-1·FRI·금 숨김; 경계 36·값 12)
+- 정렬·추천·'별점 반영' 코드 변경 없음
+- 웹 테스트용 _cardMeta export 제거(배포본에 없음, verify-186은 검사 컨텍스트에서만 응답에 덧붙임) · qa/tools/qa_snapshot_checks.py(qa_snapshot.sh가 호출)는 RELEASE.txt 맨 위 버전 항목만 읽도록 수정
+테스트(2026-10-16 16:25~16:28 KST 전체 재실행):
+- Android testDebugUnitTest 179건 중 178 통과·1 건너뜀·실패 0 (새 Beta186Test 6/6, Promo186UiTest 11/11)
+  결과 파일 android/app/build/test-results/testDebugUnitTest/TEST-com.aicoffee.data.Beta186Test.xml · TEST-com.aicoffee.ui.Promo186UiTest.xml (전체 같은 폴더)
+- web promo186 73/73, verify-186 WebKit 17/17, verify-185 WebKit 10/10, verify WebKit 89/89, promo185 29/29, golden 53/53, golden182 160/160, golden183 60/60, value-sort 6/6, beta182 21/21
+  결과 파일 qa/builds/1.8.6/*.txt (verify-webkit.txt·verify-185.txt·verify-186.txt·promo186-check.txt 등)
+스크린샷: screenshots/1.8.6/ android-·web- fail, fold-collapsed, fold-expanded, fold-recur, card-over-3km (+ web-detail-over-3km)
+미검증: 독립 QA, 에뮬레이터·갤럭시 실기기·iPhone Safari 실기기, 배포본(Pages) 미배포
+
+---- 이전 ----
+
+버전: Beta 1.8.5 (Android versionCode 14) — 배포 완료(2026-10-16, Pages 커밋 4940824)
 빌드 날짜: 2026-10-16 15:31 (KST)
 기획 기준: CEO2 1.8.5 지시 2026-10-16(공식 프로모션·이벤트, UI는 UI BOT 부재로 1.8.4 디자인 체계 사용 결정) · 1.8.4 합친 버튼('지도에서 보기 ›') 포함(1.8.4 단독 출시 안 함)
 APK: android/AI-Coffee-Beta-1.8.5-debug.apk md5 8a0839be30fb655ca624c4b8fbe199f9 (15,270,100바이트) · INTERNET 권한 없음(aapt 확인)
 웹: 셸 캐시 aic-shell-beta-1.8.5-r3-1(js/promotions.js·data/1.8.5/promotions.csv 셸 포함), DB data/aicoffee-db-r4.txt.gz(1.8.4와 같음), DB 캐시 aic-db-2026-10-14-r4
 프로모션 데이터: data/1.8.5/promotions.csv md5 e4b9e2c173ea23024d996086f9f5be36, 6행(파스쿠찌 3·스타벅스 2·컴포즈커피 1, 모두 일부매장), 거부 0, 미확인 제외. 앱 번들 복사 scripts/copy_promotions_1_8_5.sh
 변경: 매장 상세 '공식 프로모션·이벤트' 카드(제목·혜택·기간·범위·'공식 출처 · 확인일'·'공식 출처 보기 ›' 외부 브라우저, 인터넷 필요 안내), 0건이면 숨김. 정보 화면 목록에 '공식 프로모션·이벤트' 화면(브랜드 묶음, 종료일 빠른 순, 빈 화면 안내). 종료 판정 KST(시작일 00:00 ~ 종료일 23:59:59). 추천·정렬 코드는 프로모션을 읽지 않음
-테스트: Android testDebugUnitTest 162/162(1 건너뜀, 새 Promotions185Test 5·Promo185UiTest 7), web promo185 29/29, golden 53/53, golden182 160/160, golden183 60/60, value-sort 6/6, beta182 21/21, verify WebKit 89/89, verify-185 WebKit 10/10
+테스트: Android testDebugUnitTest 162/162(1 건너뜀, 새 Promotions185Test 5·Promo185UiTest 7), web promo185 29/29, golden 53/53, golden182 160/160, golden183 60/60, value-sort 6/6, beta182 21/21, verify WebKit 89/89, verify-185 WebKit 10/10 · 결과 파일 android/app/build/test-results/testDebugUnitTest/TEST-com.aicoffee.data.Promotions185Test.xml(5/5)·TEST-com.aicoffee.ui.Promo185UiTest.xml(7/7), 2026-10-16 15:58 KST 재실행
 스크린샷: screenshots/1.8.5/(android-·web- detail-P185-001, list, empty)
 미검증: 독립 QA, 에뮬레이터·갤럭시 실기기·iPhone Safari 실기기
 
