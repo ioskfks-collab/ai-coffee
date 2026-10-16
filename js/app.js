@@ -4,9 +4,10 @@ import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radiu
 import { I } from './icons.js';
 import { ID_MAP_R2_R3, ID_MAP_R3_R4 } from './idmap.js';
 import { MenuLinks, Seasonal, TasteTags, MyMenu, TastePrefs, Data182 } from './beta182.js';
+import { Promotions, PromoData, Promo185 } from './promotions.js';
 import { PhotoLinks, IndPriceTable, indLabel, indSourceLine } from './beta183.js';
 
-export const VERSION = '1.8.3';
+export const VERSION = '1.8.5';
 const DB_URL = 'data/aicoffee-db-r4.txt.gz', DB_CACHE = 'aic-db-2026-10-14-r4', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
@@ -20,8 +21,8 @@ const ref = () => S.loc || (S.area ? { lat: S.area.lat, lng: S.area.lng, acc: nu
 const manual = () => !S.loc && !!S.area;
 export const MANUAL_AREA_NOTE = '선택한 지역의 중심 기준이라 실제 거리와 다를 수 있어요';
 // Beta 1.8 지도 앱 시트 문구(ui-1.8-map-app-sheet.md 그대로)
-export const HOURS_ROW = '영업시간·후기 보기 ›', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·후기'; // Beta 1.8.1 이름 변경(외부 별점 수집·저장 없음)
-export const HOURS_NOTE = '네이버·카카오에서 검색 결과로 열려요. 주소로 매장을 확인해 주세요.', HOURS_SOURCE = '영업시간·별점·후기는 네이버·카카오 기준이에요.'; // Beta 1.8.1
+export const HOURS_ROW = '지도에서 보기 ›', HOURS_ROW_NOTE = '영업시간·후기·사진', SHEET_TAB_DIR = '길찾기', SHEET_TAB_HOURS = '영업시간·후기·사진'; // Beta 1.8.4: 사진 보기와 합침 // Beta 1.8.1 이름 변경(외부 별점 수집·저장 없음)
+export const HOURS_NOTE = '네이버·카카오에서 검색 결과로 열려요. 주소로 매장을 확인해 주세요.', HOURS_SOURCE = '영업시간·별점·후기·사진은 네이버·카카오 기준이에요. 이 앱은 사진을 저장하지 않아요.'; // Beta 1.8.1
 // Beta 1.8.3 문구(ui/ui-1.8.3.md, Android Sheet183·Common.kt와 같음). 사진 라벨은 ui-1.8.3.md(c3102b69) 확정 '사진 보기 ›' — PHOTO_LABEL 하나만 바꾸면 됨
 export const PHOTO_LABEL = '사진 보기', PHOTO_ROW = PHOTO_LABEL + ' ›', SHEET_TAB_PHOTO = '사진 보기';
 export const PHOTO_NOTE = '네이버·카카오의 매장 검색 화면으로 열려요. 매장을 눌러 사진을 확인해 주세요.', PHOTO_SOURCE = '사진은 네이버·카카오 기준이에요. 이 앱은 사진을 저장하지 않아요.';
@@ -326,6 +327,20 @@ function TasteScreen() {
   return topBar('취향 고르기', { onBack: leave, right }) + `<div class="scroll">${sub(H182.TASTE_NOTE, 'padding-top:6px')}${secs.map(([h, ts]) => h3(h) + `<div class="flow tall">${ts.map(t => chip(t, sel.includes(t), () => { TASTE.sel = sel.includes(t) ? sel.filter(x => x !== t) : [...sel, t]; render(); })).join('')}</div>`).join('')}<div style="height:12px"></div></div>
     <div class="cta">${btn('저장', () => { A.setTaste(sel); TASTE.sel = null; back(); }, 'pri', false)}</div>`;
 }
+// Beta 1.8.5 공식 프로모션·이벤트: 기존 흰 카드(box notice)만, 광고형 배지·색 없음. 추천·정렬과 무관
+function promoCard(p) {
+  return box(`<p class="b">${esc(p.title)}</p><p style="margin-top:2px">${esc(p.benefitText)}</p>${sub(`기간 ${esc(Promotions.period(p))} · ${esc(p.scope)}`)}${sub(esc(Promo185.sourceLine(p)))}<div class="rowc" style="min-height:48px"><a class="txtbtn c promolink" style="min-height:48px;display:inline-flex;align-items:center" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener noreferrer">${Promo185.LINK}</a><span class="sub">&nbsp;${Promo185.NET_NOTE}</span></div>`, 'notice promocard');
+}
+export function promoSection(brand, items = PromoData.items, now = Date.now()) {
+  const vis = brand ? Promotions.forBrand(items, brand, now).sort((a, b) => a.endDate < b.endDate ? -1 : a.endDate > b.endDate ? 1 : a.id < b.id ? -1 : 1) : [];
+  return vis.length ? `<section class="promo">${h3(Promo185.SECTION)}${vis.map(promoCard).join('')}</section>` : '';
+}
+function PromoScreen() {
+  const g = Promotions.grouped(PromoData.items, Date.now());
+  const b = !PromoData.ready ? '<p>불러오는 중…</p>' : !g.length ? `<div class="empty promoempty">${emptyCup()}<p class="b" style="margin-top:8px">${Promo185.EMPTY}</p>${sub('데이터 확인일 ' + (PromoData.checked || '-'))}</div>`
+    : g.map(([br, ps]) => `<p class="b promobrand" style="font-weight:800;padding-top:14px">${esc(br)}</p>` + ps.map(promoCard).join('')).join('');
+  return topBar(Promo185.SECTION, { sub: '브랜드 공식 홈페이지 기준 · 추천 순위와 무관', onBack: back }) + `<div class="scroll">${b}${sub('확인한 공식 출처만 실어요. 끝난 행사는 자동으로 숨겨요. 매장별로 참여가 다를 수 있어요.')}</div>`;
+}
 function seasonSection(brand) {
   const vis = Seasonal.visible(Data182.SEASON.filter(x => x.brand === brand)); if (!vis.length) return '';
   const ck = vis.map(x => x.checked).filter(Boolean).sort().pop();
@@ -379,7 +394,7 @@ function StoreScreen(i) {
   let b = `<h2 class="title" style="padding-top:6px;white-space:normal">${esc(db.name[i])}</h2>
     <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distPlain(d) : '위치 미정'}</span>${d != null ? ' · <span class="nowrap">' + Geo.walkText(d) + '</span>' : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
     <p>주소: ${esc(db.addr[i])}</p>
-    <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + (db.isFr(i) ? seasonSection(db.brandName(i)) : '') + h3('메뉴 가격');
+    <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + (db.isFr(i) ? seasonSection(db.brandName(i)) + promoSection(db.brandName(i)) : '') + h3('메뉴 가격');
   if (db.isFr(i)) {
     const br = db.brandName(i);
     const rows = MenuTable.KEYS.map(k => [k, MenuTable.brandSizes(br, k)]).filter(([, ss]) => ss && !ss.notSold);
@@ -418,7 +433,7 @@ function StoreScreen(i) {
   fold += `<hr style="margin:6px 0">` + [EX_PRICE_NOTICE, ...DATA_NOTICE].map(x => `<p style="padding:2px 0">· ${esc(x)}</p>`).join('')
     + `<p style="padding:2px 0">· 길 안내: 설치된 지도 앱으로 이동 · 매장 위치만 전달하고 내 위치 좌표는 보내지 않아요</p><p style="padding:2px 0">· 매장 정보 출처: ${storeSource(i, db.dbDate)} · 등록된 브랜드·카페와 제휴 관계가 없어요</p>`;
   const open = !!UI.fold;
-  b += `<div style="height:4px"></div><hr>` + `<button class="listrow hoursrow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'hours' }))}"><span>${HOURS_ROW}</span></button><hr><button class="listrow photorow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'photo' }))}"><span>${PHOTO_ROW}</span></button><hr><button class="listrow menurow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'menu' }))}"><span>${MENU_ROW}<br><span class="sub">${MENU_ROW_NOTE}</span></span></button>`;
+  b += `<div style="height:4px"></div><hr>` + `<button class="listrow hoursrow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'hours' }))}"><span>${HOURS_ROW}<br><span class="sub">${HOURS_ROW_NOTE}</span></span></button><hr><button class="listrow menurow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'menu' }))}"><span>${MENU_ROW}<br><span class="sub">${MENU_ROW_NOTE}</span></span></button>`;
   b += `<div class="fold"><hr><button aria-expanded="${open}" data-a="${act(() => { UI.fold = !UI.fold; render(); })}"><span>출처·안내 · 추천 점수</span>${open ? I.up : I.down}</button>${open ? `<div class="content">${fold}</div>` : ''}</div>`;
   b += '<hr>' + listRow('정보 제보·신고', () => openSheet({ type: 'report', i }));
   return h + `<div class="scroll" data-keep="store">${b}</div><div class="cta">${btn('지도 앱으로 길찾기', () => openSheet({ type: 'map', i }), 'pri')}</div>` + ad();
@@ -489,7 +504,7 @@ const DOCS = {
 };
 function InfoScreen() {
   const items = [['terms', '서비스 이용약관 (문안 확정 전)'], ['lbs', '위치기반서비스 이용약관 (문안 확정 전)'], ['privacy', '개인정보처리방침 (문안 확정 전)'], ['policy', '별점 운영정책'], ['criteria', '추천 기준 설명 (점수 기반 추천)'], ['sources', '데이터 출처·기준일 · 제휴 없음 · 광고 안내'], ['withdraw', '개인위치정보 동의 관리·철회'], ['oss', '오픈소스 라이선스 (글꼴·아이콘)']];
-  let b = items.map(([k, t]) => listRow(t, () => go('doc/' + k))).join('') + listRow('브랜드·업주 정보 수정·삭제·노출 중단 요청', () => go('report/-1/d'));
+  let b = items.map(([k, t]) => listRow(t, () => go('doc/' + k))).join('') + listRow(Promo185.SECTION, () => go('promos')) + listRow('브랜드·업주 정보 수정·삭제·노출 중단 요청', () => go('report/-1/d'));
   b += `<div style="height:12px"></div><p>매장 DB: 상가정보 기준일 2026-06-30 + 인허가(data.go.kr 15006730) 기준일 2026-10-14 · ${EN ? EN.db.size.toLocaleString('ko-KR') + '곳 기기 저장됨' : '불러오는 중'}</p><p>위치 동의: ${cstate(S.consent)}</p>
     <p>내 제출 기록: ${S.outbox.length}건 (서버 미연결 베타: 이 기기에만 보관)</p><p>권한: 위치(선택)만 사용 · 광고 ID·분석 도구 없음 · 외부 서버 요청 없음(앱 파일·전국 DB를 처음 한 번 받기만 함)</p><p>개인정보 문의: (운영자 이메일 확정 전)</p>`;
   return topBar('정보', { sub: `AI Coffee Web Beta ${VERSION}` }) + `<div class="scroll" data-keep="info">${b}</div>` + ad();
@@ -654,7 +669,7 @@ function sheetContent() {
     const nm = EN.db.name[sh.i]; const menu = sh.tab === 'menu'; const photo = sh.tab === 'photo'; const hours = sh.tab === 'hours' || menu || photo; const apps = hours ? MapLinks.hoursSheet(S.mapApp) : MapLinks.sheet(S.mapApp);
     const tab = (t, label) => `<button role="tab" aria-selected="${t === (sh.tab || 'dir')}" data-a="${act(() => { sh.tab = t; render(); })}">${label}</button>`;
     const rows = apps.map((a, n) => `${n > 0 ? '<hr>' : ''}<button class="maprow" data-a="${act(() => hours ? launchHours(a.id, sh.i, menu, photo) : launchMap(a.id, sh.i))}"><span class="ic">${I.nav}</span><span class="lb">${a.label}</span>${a.id === S.mapApp ? badge('지난번 선택') : ''}<span class="numtxt">&nbsp;&nbsp;${hours ? MapLinks.HOURS_HINT : a.hint} ›</span></button>`).join('');
-    return { body: `<div class="sc"><h2 class="h2 sheettitle">${esc(nm)}</h2><div class="sheettabs" role="tablist">${tab('dir', SHEET_TAB_DIR)}${tab('hours', SHEET_TAB_HOURS)}${tab('menu', SHEET_TAB_MENU)}${tab('photo', SHEET_TAB_PHOTO)}</div>
+    return { body: `<div class="sc"><h2 class="h2 sheettitle">${esc(nm)}</h2><div class="sheettabs" role="tablist">${tab('dir', SHEET_TAB_DIR)}${tab('hours', SHEET_TAB_HOURS)}${tab('menu', SHEET_TAB_MENU)}</div>
       ${hours ? '' : sub('고른 지도 앱으로 이동해요. 매장 위치(목적지)만 전달하고 내 위치 좌표는 보내지 않아요. 출발지는 지도 앱이 현재 위치로 정해요.')}<div style="height:6px"></div>${rows}
       ${hours ? `<p class="t15 hoursnote" style="padding-top:8px">${menu ? MENU_NOTE : photo ? PHOTO_NOTE : HOURS_NOTE}</p><p class="sub hourssrc" style="padding-top:2px">${menu ? MENU_SOURCE : photo ? PHOTO_SOURCE : HOURS_SOURCE}</p>` : sub('앱이 설치되어 있지 않으면 Apple 지도(웹)로 열어요.', 'padding-top:6px')}<div style="display:flex;justify-content:flex-end;padding-top:4px"><button class="txtbtn" data-a="${act(closeSheet)}">취소</button></div></div>` };
   }
@@ -699,7 +714,7 @@ function screenHtml() {
   switch (r) {
     case 'c01': return C01(); case 'c02': return C02(); case 'c02b': return C02b(); case 'c03': return C03(); case 'p02a': return P02a();
     case 'taste': return TasteScreen();
-    case 'compare': return CompareScreen(); case 'fav': return FavScreen(); case 'info': return InfoScreen();
+    case 'compare': return CompareScreen(); case 'fav': return FavScreen(); case 'info': return InfoScreen(); case 'promos': return PromoScreen();
     case 'doc': return DocScreen(a || ''); case 'store': return StoreScreen(parseInt(a, 10));
     case 'rate': return RateScreen(parseInt(a, 10)); case 'price': return PriceScreen(parseInt(a, 10));
     case 'report': return ReportScreen(parseInt(a, 10), b2 || ''); case 'done': return DoneScreen(a || '');
@@ -757,7 +772,7 @@ function maybeA2hs() {
 export async function start() {
   if (CSS.supports('font', '-apple-system-body') && CSS.supports('-webkit-touch-callout', 'none')) document.documentElement.classList.add('ios');
   const big = () => document.documentElement.classList.toggle('big', isBig());
-  restore(); big(); Data182.load().then(() => { MM.key = null; render(); }); window.addEventListener('resize', () => { big(); render(); });
+  restore(); big(); Data182.load().then(() => { MM.key = null; render(); }); PromoData.load().then(render); window.addEventListener('resize', () => { big(); render(); });
   const h = location.hash.replace(/^#\//, '');
   UI.route = S.consent.age == null ? 'c01' : (h && !h.startsWith('c0') ? h : 'near');
   history.replaceState({ depth: 0 }, '', '#/' + UI.route);

@@ -1,5 +1,31 @@
 AI Coffee Web — 릴리스 정보
 
+버전: Beta 1.8.5 (Android versionCode 14) — 테스트 통과, QA 전, 배포 안 함
+빌드 날짜: 2026-10-16 15:31 (KST)
+기획 기준: CEO2 1.8.5 지시 2026-10-16(공식 프로모션·이벤트, UI는 UI BOT 부재로 1.8.4 디자인 체계 사용 결정) · 1.8.4 합친 버튼('지도에서 보기 ›') 포함(1.8.4 단독 출시 안 함)
+APK: android/AI-Coffee-Beta-1.8.5-debug.apk md5 8a0839be30fb655ca624c4b8fbe199f9 (15,270,100바이트) · INTERNET 권한 없음(aapt 확인)
+웹: 셸 캐시 aic-shell-beta-1.8.5-r3-1(js/promotions.js·data/1.8.5/promotions.csv 셸 포함), DB data/aicoffee-db-r4.txt.gz(1.8.4와 같음), DB 캐시 aic-db-2026-10-14-r4
+프로모션 데이터: data/1.8.5/promotions.csv md5 e4b9e2c173ea23024d996086f9f5be36, 6행(파스쿠찌 3·스타벅스 2·컴포즈커피 1, 모두 일부매장), 거부 0, 미확인 제외. 앱 번들 복사 scripts/copy_promotions_1_8_5.sh
+변경: 매장 상세 '공식 프로모션·이벤트' 카드(제목·혜택·기간·범위·'공식 출처 · 확인일'·'공식 출처 보기 ›' 외부 브라우저, 인터넷 필요 안내), 0건이면 숨김. 정보 화면 목록에 '공식 프로모션·이벤트' 화면(브랜드 묶음, 종료일 빠른 순, 빈 화면 안내). 종료 판정 KST(시작일 00:00 ~ 종료일 23:59:59). 추천·정렬 코드는 프로모션을 읽지 않음
+테스트: Android testDebugUnitTest 162/162(1 건너뜀, 새 Promotions185Test 5·Promo185UiTest 7), web promo185 29/29, golden 53/53, golden182 160/160, golden183 60/60, value-sort 6/6, beta182 21/21, verify WebKit 89/89, verify-185 WebKit 10/10
+스크린샷: screenshots/1.8.5/(android-·web- detail-P185-001, list, empty)
+미검증: 독립 QA, 에뮬레이터·갤럭시 실기기·iPhone Safari 실기기
+
+---- 이전 ----
+
+
+버전: Beta 1.8.4 (Android versionCode 13) — 테스트 통과, 배포 안 함(대기)
+빌드 날짜: 2026-10-15 21:13 (KST)
+APK: android/AI-Coffee-Beta-1.8.4-debug.apk md5 6061503bd50bb68af2751fa37e0741d1 (15,252,277바이트) · INTERNET 권한 없음
+웹: 셸 캐시 aic-shell-beta-1.8.4-r3-1, DB data/aicoffee-db-r4.txt.gz md5 7b9722c776ff1e96908c74116ec7bee6(1.8.3과 같음), DB 캐시 aic-db-2026-10-14-r4
+변경: 매장 상세 '영업시간·후기 보기 ›'와 '사진 보기 ›'를 한 버튼 '지도에서 보기 ›'(보조 문구 '영업시간·후기·사진')로 합침 → 같은 네이버·카카오 검색 시트. 시트 탭 4→3(길찾기·영업시간·후기·사진·메뉴 보기). 출처 문구 '영업시간·별점·후기·사진은 네이버·카카오 기준이에요. 이 앱은 사진을 저장하지 않아요.' 매장 DB·출처 표시는 1.8.3과 같음
+테스트: Android testDebugUnitTest 150/150(1 건너뜀), web golden 53/53, golden182 160/160, golden183 60/60, value-sort 6/6, beta182 21/21, verify WebKit 90/90
+미검증: 에뮬레이터·갤럭시 실기기·iPhone Safari 실기기
+
+---- 이전 ----
+
+AI Coffee Web — 릴리스 정보
+
 버전: Beta 1.8.3 (Android versionCode 12) — 독립 QA 통과(2026-10-15 20:5x KST), 배포
 빌드 날짜: 2026-10-15 20:47 (KST) (출처 표시 수정 재빌드)
 APK: android/AI-Coffee-Beta-1.8.3-debug.apk md5 e980fc8248e66dbfb6c3e9dc7c956da4 (15,614,643바이트) · INTERNET 권한 없음
