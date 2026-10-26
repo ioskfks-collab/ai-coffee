@@ -1,6 +1,6 @@
 // AI Coffee Web Beta 1.8.1 — 화면·상태. Android Beta 1.8 ui/screens/*.kt, AppViewModel.kt, MainActivity.kt를 옮김.
 // 위치 좌표는 S.loc(메모리)에만 두고 저장·전송·console 출력하지 않음.
-import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radius, F, LBL, Reasons, Presets, PRESET_ORDER, Engine, SubmitRules, MapLinks, defaultFilter, defaultInc, parseIdMap, migrateIds, migrateIdsAll, ID_VER } from './core.js';
+import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radius, F, LBL, Reasons, Presets, PRESET_ORDER, Engine, SubmitRules, MapLinks, MapSearch, defaultFilter, defaultInc, parseIdMap, migrateIds, migrateIdsAll, ID_VER } from './core.js';
 import { I } from './icons.js';
 import { ID_MAP_R2_R3, ID_MAP_R3_R4 } from './idmap.js';
 import { MenuLinks, Seasonal, TasteTags, MyMenu, TastePrefs, Data182 } from './beta182.js';
@@ -8,7 +8,7 @@ import { Promotions, PromoData, Promo185, recurLabel } from './promotions.js';
 import { BrandLinks, LinkData, P9 } from './brandlinks.js';
 import { PhotoLinks, IndPriceTable, indLabel, indSourceLine } from './beta183.js';
 
-export const VERSION = '1.8.6';
+export const VERSION = '1.8.7';
 const DB_URL = 'data/aicoffee-db-r4.txt.gz', DB_CACHE = 'aic-db-2026-10-14-r4', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
@@ -39,6 +39,8 @@ export const H182 = { CATS: [['near', '주변 카페'], ['fav', '나의 즐겨�
   EMPTY_NO_MATCH: '고른 취향과 공식 설명이 일치하는 카페가 없어요.', PICK: '취향 고르기', EDIT: '취향 수정', SORT_LABEL: '일치 많은 순', TASTE_NOTE: '취향은 이 휴대폰에만 저장돼요.',
   NO_INFO_NOTE: '브랜드 공식 원두·메뉴 설명이 없어 취향과 맞추지 않았어요.' };
 export const HOURS_NOT_INSTALLED = '네이버 지도나 카카오맵이 설치되어 있지 않아요.';
+// Beta 1.8.7 지도 검색 시트 문구(ui/screens/1.8.7/map-search-sheet.html 시안 623bc81a, Android Sheet187과 같음)
+export const S187 = { QUERY_LABEL: '검색어', LOOK_NOTE: '검색 결과에 매장이 없으면 아래에서 위치로 열어 주세요.', LOOK_HEAD: '위치로 보기', look: id => `${id === 'naver' ? '네이버 지도' : '카카오맵'}에서 위치로 보기`, ADDR_HEAD: '주소', COPY: '주소 복사', COPIED: '주소를 복사했어요' };
 const locOK = () => S.consent.age === '14+' && S.consent.loc === 'agree';
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
@@ -699,12 +701,35 @@ function sheetContent() {
     const rows = apps.map((a, n) => `${n > 0 ? '<hr>' : ''}<button class="maprow" data-a="${act(() => hours ? launchHours(a.id, sh.i, menu, photo) : launchMap(a.id, sh.i))}"><span class="ic">${I.nav}</span><span class="lb">${a.label}</span>${a.id === S.mapApp ? badge('지난번 선택') : ''}<span class="numtxt">&nbsp;&nbsp;${hours ? MapLinks.HOURS_HINT : a.hint} ›</span></button>`).join('');
     return { body: `<div class="sc"><h2 class="h2 sheettitle">${esc(nm)}</h2><div class="sheettabs" role="tablist">${tab('dir', SHEET_TAB_DIR)}${tab('hours', SHEET_TAB_HOURS)}${tab('menu', SHEET_TAB_MENU)}</div>
       ${hours ? '' : sub('고른 지도 앱으로 이동해요. 매장 위치(목적지)만 전달하고 내 위치 좌표는 보내지 않아요. 출발지는 지도 앱이 현재 위치로 정해요.')}<div style="height:6px"></div>${rows}
+      ${hours ? look187(sh.i, apps) : ''}
       ${hours ? `<p class="t15 hoursnote" style="padding-top:8px">${menu ? MENU_NOTE : photo ? PHOTO_NOTE : HOURS_NOTE}</p><p class="sub hourssrc" style="padding-top:2px">${menu ? MENU_SOURCE : photo ? PHOTO_SOURCE : HOURS_SOURCE}</p>` : sub('앱이 설치되어 있지 않으면 Apple 지도(웹)로 열어요.', 'padding-top:6px')}<div style="display:flex;justify-content:flex-end;padding-top:4px"><button class="txtbtn" data-a="${act(closeSheet)}">취소</button></div></div>` };
   }
   if (sh.type === 'link') { const r = sh.row; // Beta 1.8.6 P9 이동 확인(§7-3·§8-2): 버튼 전체 폭 세로, [이동하기] 맨 아래
     return { body: `<div class="sc p9sheet"><p class="p9ask">${esc(P9.ask(r.brand))}</p><p class="p9url">${esc(r.url)}</p><p class="sub">${P9.SHEET_NOTE}</p>${sh.failed ? `<p class="p9openfail">${P9.OPEN_FAIL}</p><button class="btn sec p9copy" data-a="${act(async () => { if (await copyText(r.url)) toast(P9.COPIED); })}">${P9.COPY}</button>` : ''}<div class="p9btns"><button class="btn p9cancel" data-a="${act(closeSheet)}">${P9.CANCEL}</button><button class="btn pri p9go" data-a="${act(() => launchLink(sh))}">${P9.GO}</button></div></div>` }; }
   if (sh.type === 'a2hs') return { body: `<div class="sc">${h2('홈 화면에 추가')}<p class="t15">Safari 공유 → 홈 화면에 추가</p>${sub('홈 화면에서 열면 주소창 없이 앱처럼 쓸 수 있어요. 이 안내는 한 번만 보여 드려요.')}${sheetBtns()}</div>` };
   return null;
+}
+
+// Beta 1.8.7: 검색어 한 줄 + [위치로 보기](좌표 있을 때만) + 주소·[주소 복사](주소 있을 때만). 빈 값은 채우지 않고 숨김
+function look187(i, apps) {
+  const db = EN.db, nm = db.name[i], addr = db.addr[i] || '', lat = db.lat(i), lng = db.lng(i);
+  const okCoord = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+  const q = MapSearch.query(nm, addr); let h = '';
+  if (apps.length && q.trim()) h += `<p class="sub mapquery" style="padding-top:10px">${S187.QUERY_LABEL} <b>${esc(q)}</b></p>`;
+  if (okCoord && apps.length) h += `<p class="sub looknote" style="padding-top:6px">${S187.LOOK_NOTE}</p><p class="looktitle">${S187.LOOK_HEAD}</p>` + apps.map(a => `<button class="btn sec lookbtn" data-id="${a.id}" data-a="${act(() => launchLook(a.id, i))}">${S187.look(a.id)}</button>`).join('');
+  if (addr.trim()) h += `<p class="looktitle">${S187.ADDR_HEAD}</p><p class="mapaddr">${esc(addr)}</p><button class="btn sec copyaddr" data-a="${act(async () => { if (await copyText(addr)) toast(S187.COPIED); })}">${S187.COPY}</button>`;
+  return h;
+}
+function launchLook(id, i) {
+  const db = EN.db; const store = { lat: db.lat(i), lng: db.lng(i) };
+  A.setMapApp(id); UI.sheet = null; render();
+  let url; try { url = MapLinks.lookUrl(id, db.name[i], store); } catch { toast(HOURS_NOT_INSTALLED); return; }
+  let left = false; const hide = () => { left = true; };
+  document.addEventListener('visibilitychange', hide, { once: true }); window.addEventListener('pagehide', hide, { once: true }); window.addEventListener('blur', hide, { once: true });
+  UI.lastHoursUrl = url;
+  try { location.href = url; } catch { }
+  setTimeout(() => { document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', hide); window.removeEventListener('blur', hide);
+    if (!left && document.visibilityState === 'visible') toast(HOURS_NOT_INSTALLED); }, 1500);
 }
 
 // ---------- 길 안내 실행 ----------

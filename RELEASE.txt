@@ -1,5 +1,57 @@
 AI Coffee Web — 릴리스 정보
 
+버전: Beta 1.8.7 r3 (Android versionCode 17, versionName 'Beta 1.8.7') — r2 + 영업시간·메뉴·사진 탭 네이버·카카오 행 안내 '검색으로 열기 ›'. 테스트 통과, QA 전, 배포 안 함(GitHub Pages 미배포)
+빌드 날짜: 2026-10-26 17:13 KST · 빌드 폴더 qa/builds/1.8.7/build-1713/ (로그 첫 줄 run=시각 id src=205fe678ffbc3f70ff039e70f6dd77a7)
+기획: plan-1.8.6.md fcd4bcbdf8da3fb51c62a6eb13e64076(빌드 시작·끝 실측 동일) · 백업 backup/plan-1.8.6.build-9.md
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 a065fbe95b324a19749689421a5d81bc (15,748,153바이트) · versionCode 17 · INTERNET 권한 없음
+웹: web-dist-1.8.7/ (목록 qa/builds/1.8.7/build-1713/web-dist-1.8.7-files.md5 md5 16e9c3fa3d88182f995deaecb3814bd8, 29파일 md5sum -c 통과), sw.js ffa8c28b1a50c518ea6ac4df6e83996b, 셸 캐시 aic-shell-beta-1.8.7-r3
+변경(코드는 상수 1개): HOURS_HINT '검색' → '검색으로 열기' (Android domain/MapApps.kt 88행, 웹 js/core.js 442행) · 표시 '검색으로 열기 ›' Android 14sp·웹 본문 크기, 말줄임 없음 · 검색어 규칙·정답(map-search-1.8.7.json 2c5ad453) 변경 없음
+테스트: Android 209건(통과 208·건너뜀 1·실패 0, 새 MapSheet187UiTest: 두 행에 '검색으로 열기 ›', 13sp 이상, 1줄, 넘침 없음) · web map-search-187 273/273(행 안내 2건 추가) · 전수 143,670행 참조·DATA(532e574f) 불일치 0(Android·웹) · golden 53/53 · golden182 160/160 · golden183 60/60 · beta182 21/21 · value-sort 6/6 · promo185 30/30 · promo186 73/73 · check-links 오류 0
+build-1708(r2) 산출물 복사본: backup/build-1708/ (QA 검증용 원본 md5 그대로)
+미검증: WebKit 화면 검증(verify.mjs), 독립 QA, 실기기
+
+버전: Beta 1.8.7 r2 [대체됨 → r3] (Android versionCode 17, versionName 'Beta 1.8.7') — 지도 검색 결과 없음 수정, CEO2 17:05 상호 정리 확정 반영. 테스트 통과, QA 전, 배포 안 함(GitHub Pages 미배포)
+빌드 날짜: 2026-10-26 17:08 KST · 빌드 폴더 qa/builds/1.8.7/build-1708/ (모든 로그 첫 줄 run=시각 id src=086421212766a1d8d8ff3e2f14ecf30a)
+기획 백업(build-dist): backup/plan-1.8.6.build-9.md md5 fcd4bcbdf8da3fb51c62a6eb13e64076 (2026-10-26 17:14 KST)
+입력 md5(빌드 시작 실측, qa/builds/1.8.7/build-1708/00-inputs-md5.log): plan-1.8.6.md 80e923498f4a41d8a39c9e13d05d0777 · ui/ui-1.8.7-map-search.md dba4e64eb92179473078acd685dff1fd · map-search-sheet.png eb7c271c75a5a989436952c575706106 · data/next/map-sgg-extract-1.8.7.md 2fc12618cc3ecb35698b443eda5da93e · data/next/expected-map-query-1.8.7.csv 532e574f2d00d01cd90a337e3f3717ba(수정 2026-10-26 17:05:05 KST) · build_expected_queries.py 7b6f401a33d10b70a6834017d710f6c6 · stores.bin 8a876e111b40b02133ca861779e796e1 · data/1.8.6/brand_links.csv 77df5e748a6934ffb4eb979113498b96 · promotions.csv 4a17930b86b0ce60de308bd10c55bb17 · 정답 map-search-1.8.7.json 2c5ad4535d24a50ce70ac9e0f1740bc3 · map_ref_187.py 83860f405d8ed33381df685e59831a97 · full-ref.tsv 3351dc3936a3c251a4a5e41b3b6dd707 · 규칙 docs/map-search-rule-1.8.7.md 6b7842a80f48afa20302796aa5c53ba6
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 9a76a97b11b0331002d335064dfd88ab (15,748,129바이트) · versionCode 17 · 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION(INTERNET 없음)
+웹: web-dist-1.8.7/ 30파일(목록 qa/builds/1.8.7/build-1708/web-dist-1.8.7-files.md5 md5 fe680686879eeb8e79bd2eb472ce0168, RELEASE.txt 제외 29파일, md5sum -c 통과), sw.js f00a76518b671a13f636efff414c7f98, 셸 캐시 aic-shell-beta-1.8.7-r2, data/1.8.5 제외, web-dist/(1.8.5)·web-dist-1.8.6/ 그대로
+변경: 검색어 = 정리한 매장명 + 시·군·구(plan M9) — 영업시간·후기·메뉴·사진, 네이버·카카오 공통 · 상호 정리(고정 순서): ①안쪽 괄호부터, 법인 표기뿐이면 괄호째 빼고 공백·아니면 괄호 기호만 공백 ②괄호 밖 법인 표기 → 공백 ③짝 없는 괄호 기호 → 공백(UNMATCHED_TO_SPACE=true) ④공백 정리 · 법인 표기 고정 11개(corp_markers, 재단법인 제외) · 시트: 검색어·안내 13sp, '위치로 보기' 소제목 + 앱별 48dp 버튼, 주소 상자 + [주소 복사] + 스낵바(시트 유지) · 길찾기·정렬·추천 변경 없음 · 사용자 위치 미전송
+테스트: Android testDebugUnitTest 208건(통과 207·건너뜀 1·실패 0) · assembleDebug 성공 · web map-search-187 271/271 · 전수 143,670행: 참조 불일치 0, DATA(532e574f, data_idx0) 불일치 0(Android·웹, 불일치 CSV는 머리줄만) · golden 53/53 · golden182 160/160 · golden183 60/60 · beta182 21/21 · value-sort 6/6 · promo185 30/30 · promo186 73/73 · scope-note 16/16 · p8p9 42/42 · check-links 오류 0 · check-promo-rows 10/10
+미검증: WebKit 화면 검증(verify.mjs, 이 컴퓨터에 WebKit 실행 라이브러리 없음), 독립 QA, 에뮬레이터·갤럭시 실기기
+다음 링크 재확인일 2026-12-15
+
+---- 이전 ----
+
+(대체됨, build-1701 산출물은 backup/aborted/) 버전: Beta 1.8.7 (Android versionCode 17, versionName 'Beta 1.8.7') — 지도 검색 결과 없음 수정. 테스트 통과, QA 전, 배포 안 함(GitHub Pages 미배포)
+빌드 날짜: 2026-10-26 17:0x KST · 빌드 폴더 qa/builds/1.8.7/build-1701/ (모든 로그 첫 줄 run=시각 id src=74258efa21e5d720ef43df37de4b8bd1)
+기획 백업(build-dist): backup/plan-1.8.6.build-7.md md5 0cf855f7c61168ca89c8fd33b62c251a (2026-10-26 17:03 KST)
+입력 md5(빌드 시작 17:01 KST 실측, qa/builds/1.8.7/build-1701/00-inputs-md5.log): plan-1.8.6.md 0cf855f7c61168ca89c8fd33b62c251a · ui/ui-1.8.7-map-search.md dba4e64eb92179473078acd685dff1fd · ui/screens/1.8.7/map-search-sheet.png eb7c271c75a5a989436952c575706106 · map-search-sheet.html 623bc81a76479e408be14a0e0eac8135 · data/next/map-sgg-extract-1.8.7.md 2fc12618cc3ecb35698b443eda5da93e · data/next/expected-map-query-1.8.7.csv 532e574f2d00d01cd90a337e3f3717ba · build_expected_queries.py 7b6f401a33d10b70a6834017d710f6c6 · stores.bin 8a876e111b40b02133ca861779e796e1 · data/1.8.6/brand_links.csv 77df5e748a6934ffb4eb979113498b96 · promotions.csv 4a17930b86b0ce60de308bd10c55bb17 · 정답 shared/golden/map-search-1.8.7.json a42abf62834d2832b7a368be95f12e76 · map_ref_187.py 337880e4d69b7ee789bc11e44863cb40 · 규칙 docs/map-search-rule-1.8.7.md e11fc7e79402fa6e5545191d8db8af8b
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 98cb752c1050661b5d826c0d6d84caef (15,748,129바이트) · versionCode 17 · aapt 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION(INTERNET 없음)
+웹: web-dist-1.8.7/ 30파일(목록 qa/builds/1.8.7/build-1701/web-dist-1.8.7-files.md5 md5 107581a53216855de612eb08989fb2d3, RELEASE.txt 제외 29파일, 끝에 md5sum -c 통과), sw.js 0c12c72b7ce1240697cec068da44aad1, manifest 126dc0c3ec88e7d6374a7c2a3703971e, 셸 캐시 aic-shell-beta-1.8.7-r1, data/1.8.5 제외(data/1.8.2·1.8.6만), web-dist/(1.8.5)·web-dist-1.8.6/ 그대로
+변경: 지도 검색어 = 정리한 매장명 + 시·군·구(plan M9 0cf855f7, docs/map-search-rule-1.8.7.md) — 영업시간·후기·메뉴 보기·사진 보기, 네이버·카카오 공통 · 상호 정리: 안쪽 괄호부터, 법인 표기뿐이면 괄호째 삭제·아니면 괄호 기호만 공백, 괄호 밖 법인 표기(고정 11개, 정답 파일 corp_markers) 삭제, 짝 없는 괄호 기호는 남김(UNMATCHED_TO_SPACE=false) · 시트: 검색어 한 줄(13sp), 안내(13sp), '위치로 보기' 소제목 + [네이버 지도/카카오맵에서 위치로 보기](좌표 있을 때만), 주소 상자 + [주소 복사](주소 있을 때만, 시트 유지, '주소를 복사했어요') · 길찾기·정렬·추천 변경 없음 · 사용자 위치 미전송
+테스트: Android testDebugUnitTest 208건(통과 207·건너뜀 1·실패 0) · assembleDebug 성공 · web map-search-187 236/236 · 전수 143,670행 독립 참조 불일치 0(Android·웹) · golden 53/53 · golden182 160/160 · golden183 60/60 · beta182 21/21 · value-sort 6/6 · promo185 30/30 · promo186 73/73 · scope-note 16/16 · p8p9 42/42 · check-links 오류 0 · check-promo-rows 10/10
+DATA 기대값(532e574f) 대비: 195행 다름(괄호 밖 법인 표기를 DATA는 공백으로 바꿈 151, 짝 없는 괄호 기호를 DATA는 공백으로 바꿈 44) — CEO2 판단 대기
+미검증: WebKit 화면 검증(verify.mjs, 이 컴퓨터에 WebKit 실행 라이브러리 없음), 독립 QA, 에뮬레이터·갤럭시 실기기
+다음 링크 재확인일 2026-12-15
+
+---- 이전 ----
+
+(대체됨) 버전: Beta 1.8.7 (Android versionCode 17, versionName 'Beta 1.8.7') — 지도 검색 결과 없음 수정. 테스트 통과, QA 전, 배포 안 함(GitHub Pages 미배포)
+빌드 날짜: 2026-10-26 16:5x KST · 빌드 폴더 qa/builds/1.8.7/build-1653/ (모든 로그 첫 줄 run=시각 id src=90a74814f1e01f5576d26bb870f7356a)
+기획 백업(build-dist): backup/plan-1.8.6.build-6.md md5 e0c7eb92bd26a2efe798ba5f530314ac (2026-10-26 16:54 KST)
+입력 md5(빌드 시작 16:53 KST 실측, qa/builds/1.8.7/build-1653/00-inputs-md5.log): plan-1.8.6.md e0c7eb92bd26a2efe798ba5f530314ac · ui/ui-1.8.7-map-search.md dba4e64eb92179473078acd685dff1fd · ui/screens/1.8.7/map-search-sheet.png eb7c271c75a5a989436952c575706106 · map-search-sheet.html 623bc81a76479e408be14a0e0eac8135 · data/next/map-sgg-extract-1.8.7.md 2fc12618cc3ecb35698b443eda5da93e · data/next/expected-map-query-1.8.7.csv 5970da11759a2438a0233fc51fa3989b · stores.bin 8a876e111b40b02133ca861779e796e1 · data/1.8.6/brand_links.csv 77df5e748a6934ffb4eb979113498b96 · promotions.csv 4a17930b86b0ce60de308bd10c55bb17 · 정답 shared/golden/map-search-1.8.7.json 5a10fb418c0283546f3c4cab162a36de · map_ref_187.py ca5506e8df4030e5f115a8803b0ac52c · 규칙 docs/map-search-rule-1.8.7.md run=2026-10-26
+20c8c5a3de24b1f7f199309500b85019
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 f9e3e78ca7f1d37121aa7c619a605f40 (15,337,428바이트) · versionCode 17 · aapt 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION(INTERNET 없음)
+웹: web-dist-1.8.7/ 30파일(목록 qa/builds/1.8.7/build-1653/web-dist-1.8.7-files.md5 md5 95dca0b2448e4838b5b16498304feb98, RELEASE.txt 제외 29파일, 끝에 md5sum -c 통과), sw.js 0c12c72b7ce1240697cec068da44aad1, manifest 126dc0c3ec88e7d6374a7c2a3703971e, 셸 캐시 aic-shell-beta-1.8.7-r1, data/1.8.5 제외(data/1.8.2·1.8.6만), web-dist/(1.8.5)·web-dist-1.8.6/ 그대로
+변경: 지도 검색어 = 정리한 매장명 + 시·군·구(plan M9, docs/map-search-rule-1.8.7.md) — 영업시간·후기·메뉴 보기·사진 보기 공통, 네이버·카카오 공통 · 시트에 검색어 한 줄, [네이버 지도/카카오맵에서 위치로 보기](nmap://place, kakaomap://look, 좌표 있을 때만), 주소 상자 + [주소 복사](주소 있을 때만, 시트 유지·'주소를 복사했어요') · 길찾기·정렬·추천 변경 없음 · 사용자 위치 미전송
+테스트: Android testDebugUnitTest 208건(통과 207·건너뜀 1·실패 0; MapSearch187GoldenTest 4·MapSearch187FullTest 1) · assembleDebug 성공 · web map-search-187 170/170 · 전수 143,670행 독립 참조 불일치 0(Android·웹) · golden 53/53 · golden182 160/160 · golden183 60/60 · beta182 21/21 · value-sort 6/6 · promo185 30/30 · promo186 73/73 · scope-note 16/16 · p8p9 42/42 · check-links 오류 0 · check-promo-rows 10/10
+DATA 기대값 대비: 484행 다름(협동조합류 471·영농조합법인 6·사단법인 2·겹친 괄호 5) — CEO2 판단 대기
+미검증: WebKit 화면 검증(verify.mjs, 이 컴퓨터에 WebKit 실행 라이브러리 없음), 독립 QA, 에뮬레이터·갤럭시 실기기(지도 앱 검색 결과·위치로 보기·주소 복사)
+다음 링크 재확인일 2026-12-15
+
+---- 이전 ----
+
 버전: Beta 1.8.6 next (Android versionCode 16) — P8·P9 빌드, 테스트 결과는 아래, QA 전, 배포 안 함
 기획 백업(build-dist): backup/plan-1.8.6.build-5.md md5 7f9bdc5ede19c87fc0d9d4b99ec1ed10 (2026-10-16 18:36 KST)
 빌드: qa/builds/1.8.6/build-1836/ (2026-10-16 18:36~18:4x KST, 모든 로그 첫 줄 src=ab3b4814ef4af72443be044e81e475f0)

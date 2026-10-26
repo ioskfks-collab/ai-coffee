@@ -265,3 +265,10 @@ html.big .trow.sz { flex-direction: column; align-items: stretch; } html.big .tr
 .p9btns { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 .p9btns .btn { margin: 0; min-height: 48px; } .p9cancel { background: transparent; color: var(--primary); }
 .promocard .pc-row { padding: 0; }
+
+/* Beta 1.8.7 지도 검색 시트: [위치로 보기]·주소·[주소 복사] — 둥근 48px 버튼, 가독성 우선 */
+.lookbtn, .copyaddr { width: 100%; min-height: 48px; border-radius: 24px; margin-top: 8px; font-weight: 700; }
+.looktitle { font-size: 14px; font-weight: 700; margin: 14px 0 6px; }
+.mapaddr { background: var(--bg); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 21px; word-break: keep-all; }
+.mapquery b { color: var(--text); }
+.mapquery, .looknote { font-size: 13px; line-height: 19px; }

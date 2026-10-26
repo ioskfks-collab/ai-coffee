@@ -384,6 +384,39 @@ export const SubmitRules = {
   needsReview: p => p < 1000 || p > 15000,
 };
 
+// ---------- Beta 1.8.7 지도 검색어 규칙(Android domain/MapSearch187.kt와 같음, docs/map-search-rule-1.8.7.md · 정답 shared/golden/map-search-1.8.7.json) ----------
+export const MapSearch = {
+  AMBIG: new Set(['중구', '동구', '서구', '남구', '북구', '강서구', '고성군']),
+  /** 법인 표기 고정 11개(plan M9). 정답 파일 corp_markers와 같아야 함 */
+  CORP_MARKERS: ['㈜', '(주)', '주식회사', '유한회사', '농업회사법인', '합자회사', '합명회사', '협동조합', '사회적협동조합', '영농조합법인', '사단법인'],
+  /** 짝 없는 괄호 기호: true=공백(CEO2 17:05 확정) */
+  UNMATCHED_TO_SPACE: true,
+  squash: s => s.trim().split(/\s+/).filter(Boolean).join(' '),
+  stripCorp(x) { for (const c of [...MapSearch.CORP_MARKERS].sort((a, b) => b.length - a.length)) x = x.split(c).join(' '); return x; }, // 괄호 밖 법인 표기 → 공백(CEO2 17:05)
+  corpOnly(c) { return MapSearch.stripCorp(c).trim() === '' || MapSearch.CORP_MARKERS.includes('(' + c.trim() + ')'); },
+  /** plan M9(16:57): 가장 안쪽 ( )·[ ]부터 — 안이 법인 표기뿐이면 괄호째 삭제, 아니면 괄호 기호만 공백. 괄호 밖 법인 표기 삭제. 비면 DB 이름 */
+  cleanName(name) {
+    let s = String(name ?? '');
+    for (let t; (t = s.replace(/\(([^()\[\]]*)\)|\[([^()\[\]]*)\]/g, (m, a, b) => { const c = a ?? b ?? ''; return MapSearch.corpOnly(c) ? ' ' : ` ${c} `; })) !== s;) s = t;
+    if (MapSearch.UNMATCHED_TO_SPACE) s = s.replace(/[()\[\]]/g, ' ');
+    s = MapSearch.squash(MapSearch.stripCorp(s));
+    return s || String(name ?? '');
+  },
+  /** 시·도 약칭: plan M9 고정표 7개만(구현에서 만들지 않음) */
+  SIDO_SHORT: { '서울특별시': '서울', '부산광역시': '부산', '대구광역시': '대구', '대전광역시': '대전', '울산광역시': '울산', '강원특별자치도': '강원', '경상남도': '경남' },
+  shortSido: t => MapSearch.SIDO_SHORT[t] ?? t, // 표에 없으면(전남광주통합특별시 등) 첫 단어 그대로(M9)
+  sigungu(addr) {
+    const t = String(addr ?? '').trim().split(/\s+/).filter(Boolean);
+    if (!t.length) return '';
+    if (t[0].startsWith('세종')) return '세종';
+    if (t.length < 2 || !/[시군구]$/.test(t[1])) return '';
+    if (t[1].endsWith('시') && t.length > 2 && t[2].endsWith('구')) return `${t[1]} ${t[2]}`;
+    if (MapSearch.AMBIG.has(t[1])) return `${MapSearch.shortSido(t[0])} ${t[1]}`;
+    return t[1];
+  },
+  query(name, addr) { const n = MapSearch.cleanName(name), g = MapSearch.sigungu(addr); return g ? `${n} ${g}` : n; },
+};
+
 // ---------- 길 안내 (MapApps.kt의 iOS판): 목적지(매장 좌표·상호)만. 사용자 좌표는 어떤 함수도 받지 않음 ----------
 export const MapApps = [
   { id: 'naver', label: '네이버 지도', hint: '도보' }, { id: 'kakao', label: '카카오맵', hint: '도보' },
@@ -406,10 +439,16 @@ export const MapLinks = {
   /** 순서(Android MapLinks.sheet와 같음): 지난번 선택 → 네이버·카카오·TMAP·Google → Apple(=Android '다른 지도 앱' 자리) */
   sheet(last) { const l = MapApps.find(a => a.id === last); return l ? [l, ...MapApps.filter(a => a !== l)] : MapApps.slice(); },
   // ---- Beta 1.8 [영업시간·후기 보기] 탭: 네이버·카카오만. 검색어 = 매장명 + 주소(DB 값), 카카오는 매장 좌표 p만. 사용자 위치는 받지 않음 ----
-  HOURS_APPS: ['naver', 'kakao'], HOURS_HINT: '검색',
-  hoursQuery: (name, addr) => `${name ?? ''} ${addr ?? ''}`.trim(),
-  naverSearch(name, addr) { return `nmap://search?query=${MapLinks.enc(MapLinks.hoursQuery(name, addr))}&appname=${MapLinks.APPNAME}`; },
-  kakaoSearch(name, addr, store) { return `kakaomap://search?q=${MapLinks.enc(MapLinks.hoursQuery(name, addr))}&p=${MapLinks.ll(store)}`; },
+  HOURS_APPS: ['naver', 'kakao'], HOURS_HINT: '검색으로 열기', // 1.8.7 r3: 행 표시 '검색으로 열기 ›'
+  // Beta 1.8.7: 검색어 = MapSearch.query(정리한 매장명 + 시·군·구). 인코딩은 Android URLEncoder와 같게(encJ) — 두 플랫폼 URL 동일
+  encJ: s => encodeURIComponent(s).replace(/[!'()~]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase()),
+  hoursQuery: (name, addr) => MapSearch.query(name, addr),
+  naverSearch(name, addr) { return `nmap://search?query=${MapLinks.encJ(MapLinks.hoursQuery(name, addr))}&appname=${MapLinks.APPNAME}`; },
+  kakaoSearch(name, addr, store) { return `kakaomap://search?q=${MapLinks.encJ(MapLinks.hoursQuery(name, addr))}&p=${MapLinks.ll(store)}`; },
+  /** Beta 1.8.7 [위치로 보기](공식 URL Scheme): 카카오 look?p=매장좌표, 네이버 place?lat&lng&name&appname */
+  kakaoLook(store) { return `kakaomap://look?p=${MapLinks.ll(store)}`; },
+  naverPlace(store, name) { MapLinks.check(store); return `nmap://place?lat=${MapLinks.coord(store.lat)}&lng=${MapLinks.coord(store.lng)}&name=${MapLinks.encJ(name)}&appname=${MapLinks.APPNAME}`; },
+  lookUrl(id, name, store) { if (id === 'naver') return MapLinks.naverPlace(store, name); if (id === 'kakao') return MapLinks.kakaoLook(store); throw new Error('위치로 보기는 네이버·카카오만 지원해요'); },
   hoursUrl(id, name, addr, store) {
     if (id === 'naver') return MapLinks.naverSearch(name, addr);
     if (id === 'kakao') return MapLinks.kakaoSearch(name, addr, store);
