@@ -1,5 +1,59 @@
 AI Coffee Web — 릴리스 정보
 
+버전: Beta 1.8.7 r4 (Android versionCode 18, versionName 'Beta 1.8.7') — 시작 화면·헤더 [내 위치 확인하기]로만 위치 확인·광고란 삭제·프로모션 안내창. 배포 상태: QA 통과(웹 Chromium 통과, APK 정적·Robolectric 조건부 통과, 실기기·WebKit 미검증), 2026-10-27 11:29 KST 배포 (CEO2 승인)
+빌드 날짜: 2026-10-27 11:07 KST · 빌드 번호 1107 · 빌드 폴더 qa/builds/1.8.7/build-1107/ · 빌드 스크립트 scripts/release-1.8.7.sh md5 969bc0cc119b9d3be83052ae3d576f59
+기준 문서 md5: 기획서 2ab621c7 / 명세 2a2c0098 / 메인 시안 82633a35 / 데이터 4a17930b (실측 2ab621c7c5ae1fe50248397efca1c2ff / 2a2c009860d688dae373636405c251c2 / 82633a35c908f653c3dd32d49b0a19fd / 4a17930b86b0ce60de308bd10c55bb17)
+기획 백업(build-dist): backup/plan-1.8.6.build-1107.md md5 2ab621c7c5ae1fe50248397efca1c2ff (2026-10-27 11:08 KST)
+기획: plan-1.8.6.md 빌드 시작 2ab621c7c5ae1fe50248397efca1c2ff · 끝 2ab621c7c5ae1fe50248397efca1c2ff · 사본 backup/plan-1.8.6.build-1107.md 2ab621c7c5ae1fe50248397efca1c2ff
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 6154bc983a6a42f9d506c81a258ca3d9 (15,986,713바이트) · versionCode 18 · 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION (INTERNET 없음) · 서명 build-1713과 같은 디버그 키(SHA-256 b708689e…7363fe)
+웹: web-dist-1.8.7/ · 공식 목록 qa/builds/1.8.7/build-1107/web-dist-1.8.7-files.md5 md5 9af8b3a0b553f93779b1a7e7c001b986 (첫 줄 'RELEASE.txt 제외', 29파일, md5sum -c 통과) · 보조 목록(머리줄 없음) web-dist-1.8.7-files-plain.md5 md5 3d5213117e927554f2d8025025106e36 · sw.js d71086cfd67ae786efc349492372303c · 셸 캐시 aic-shell-beta-1.8.7-r4
+정답(golden): shared/golden/map-search-1.8.7.json 2c5ad4535d24a50ce70ac9e0f1740bc3 · 지도 검색 md5 전후: 전 07f95ce8 bdf3ed1e 27b95864 · 후 07f95ce8 bdf3ed1e 27b95864
+변경(build-1020 대비): R4-A01 Android 시작 안내창 — 프로모션 데이터가 준비되기 전(실패 아님·앱 시작 5초 전)에는 판단을 미루고 데이터가 들어오면 다시 판단(웹 maybePromoNotice와 같음), 5초가 지나거나 읽기 실패면 그 실행은 안내창 없음 · R4-Q01 정보 화면 메뉴·문서 제목 '광고 안내'→'광고 없음'(웹·Android), 필터 시트 '광고는 필터·순서에 영향을 주지 않아요.' 삭제(웹·Android), 개인정보처리방침 '광고와 광고 SDK가 없어요' 유지 · 나머지는 build-1020과 같음: 위치는 헤더 버튼 requestLocation('header')만(자동 측정 없음, 설정에서 돌아와도 없음) · 거부 상태 [위치 권한 허용]: Android 앱 권한 설정, 웹은 안내 시트(닫기만, 위치 요청 없음, 문구 "권한을 켠 뒤 '내 위치 확인하기'를 눌러 주세요") · 시작 화면: Android 12+ 아이콘 + 브랜딩 이미지 'AI Coffee'(200×80dp, 글자 높이 약 31dp), 11 이하 같은 배치(compat 화면) · 5초 상한 · 광고란 5개 화면 삭제 · AD_ID는 Manifest tools:node="remove" 2줄
+테스트: Android testDebugUnitTest 228건(통과 227·건너뜀 1·실패 0) · assembleDebug 성공 · web r4-check: 47/47 PASS · map-search-187: 273/273 PASS, 0 FAIL · web full: rows 143670, vs_ref_mismatch 0, vs_data_rows 143670, vs_data_mismatch 0, mismatc · golden 53/53 PASS (9 references, walk rows 113) · 21/21 PASS · 160/160 PASS · skip 0 · season 84 · menu 6 · taste 19 · golden183: 60/60 pass · 6:약 70m 1:약 70m 4:약 90m 5:약 90m 7:약 90m 2:약 100m 12:약 150m 9:약 160m 8:약 240m 3:약 330m · value-sort 6/6 PASS · promo185 30/30 PASS · promo186 73/73 PASS · scope-note-check: 16 pass, 0 fail · p8p9-check: 42 pass, 0 fail · link-gate /workspace/ai-cafe/data/1.8.6/brand_links.csv: rows 12, tappable 11, errors 0 · promo-rows /workspace/ai-cafe/web/data/1.8.6/promotions.csv: data rows 10, parsed 10, drop
+미검증: WebKit 화면 검증(이 컴퓨터 WebKit 실행 라이브러리 없음, r4-check는 Chromium), 독립 QA, 에뮬레이터·실기기(Android 11 이하·12+ 시작 화면 포함)
+
+버전: Beta 1.8.7 r4 build-1020 [대체됨: R4-A01 안내창 판단 시점·R4-Q01 '광고' 문구 수정 재빌드 build-1107] (Android versionCode 18, versionName 'Beta 1.8.7') — 시작 화면·헤더 [내 위치 확인하기]로만 위치 확인·광고란 삭제·프로모션 안내창. 배포 상태: QA 검증 전, 배포 안 함 (CEO2 지시 후 배포)
+빌드 날짜: 2026-10-27 10:20 KST · 빌드 번호 1020 · 빌드 폴더 qa/builds/1.8.7/build-1020/ · 빌드 스크립트 scripts/release-1.8.7.sh md5 969bc0cc119b9d3be83052ae3d576f59
+기준 문서 md5: 기획서 2ab621c7 / 명세 2a2c0098 / 메인 시안 82633a35 / 데이터 4a17930b (실측 2ab621c7c5ae1fe50248397efca1c2ff / 2a2c009860d688dae373636405c251c2 / 82633a35c908f653c3dd32d49b0a19fd / 4a17930b86b0ce60de308bd10c55bb17)
+기획 백업(build-dist): backup/plan-1.8.6.build-1020.md md5 2ab621c7c5ae1fe50248397efca1c2ff
+기획: plan-1.8.6.md 빌드 시작 2ab621c7c5ae1fe50248397efca1c2ff · 끝 2ab621c7c5ae1fe50248397efca1c2ff · 사본 backup/plan-1.8.6.build-1020.md 2ab621c7c5ae1fe50248397efca1c2ff
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 2bb95f5f9a8ffa9681346cac8c084162 (15,986,713바이트) · versionCode 18 · 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION (INTERNET 없음) · 서명 build-1713과 같은 디버그 키(SHA-256 b708689e…7363fe)
+웹: web-dist-1.8.7/ · 공식 목록 qa/builds/1.8.7/build-1020/web-dist-1.8.7-files.md5 md5 44d60f9b3577c25a89c2497f8a595924 (첫 줄 'RELEASE.txt 제외', 29파일, md5sum -c 통과) · 보조 목록(머리줄 없음) web-dist-1.8.7-files-plain.md5 md5 76ced3edc7ab69b87fc7bb22a768a26b · sw.js d71086cfd67ae786efc349492372303c · 셸 캐시 aic-shell-beta-1.8.7-r4
+정답(golden): shared/golden/map-search-1.8.7.json 2c5ad4535d24a50ce70ac9e0f1740bc3 · 지도 검색 md5 전후: 전 07f95ce8 bdf3ed1e 27b95864 · 후 07f95ce8 bdf3ed1e 27b95864
+변경: 위치는 헤더 버튼 requestLocation('header')만(자동 측정 없음, 설정에서 돌아와도 없음) · 거부 상태 [위치 권한 허용]: Android 앱 권한 설정, 웹은 안내 시트(닫기만, 위치 요청 없음, 문구 "권한을 켠 뒤 '내 위치 확인하기'를 눌러 주세요") · 시작 화면: Android 12+ 아이콘 + 브랜딩 이미지 'AI Coffee'(200×80dp, 글자 높이 약 31dp), 11 이하 같은 배치(compat 화면) · 5초 상한 · 광고란 5개 화면 삭제 · AD_ID는 Manifest tools:node="remove" 2줄
+테스트: Android testDebugUnitTest 223건(통과 222·건너뜀 1·실패 0) · assembleDebug 성공 · web r4-check: 46/46 PASS · map-search-187: 273/273 PASS, 0 FAIL · web full: rows 143670, vs_ref_mismatch 0, vs_data_rows 143670, vs_data_mismatch 0, mismatc · golden 53/53 PASS (9 references, walk rows 113) · 21/21 PASS · 160/160 PASS · skip 0 · season 84 · menu 6 · taste 19 · golden183: 60/60 pass · 6:약 70m 1:약 70m 4:약 90m 5:약 90m 7:약 90m 2:약 100m 12:약 150m 9:약 160m 8:약 240m 3:약 330m · value-sort 6/6 PASS · promo185 30/30 PASS · promo186 73/73 PASS · scope-note-check: 16 pass, 0 fail · p8p9-check: 42 pass, 0 fail · link-gate /workspace/ai-cafe/data/1.8.6/brand_links.csv: rows 12, tappable 11, errors 0 · promo-rows /workspace/ai-cafe/web/data/1.8.6/promotions.csv: data rows 10, parsed 10, drop
+미검증: WebKit 화면 검증(이 컴퓨터 WebKit 실행 라이브러리 없음, r4-check는 Chromium), 독립 QA, 에뮬레이터·실기기(Android 11 이하·12+ 시작 화면 포함)
+
+---- 이전 ----
+
+버전: Beta 1.8.7 r4 build-1018 [대체됨: 루트 APK 백업 이동 누락(Gradle up-to-date) 보완 재빌드] (Android versionCode 18, versionName 'Beta 1.8.7') — 시작 화면·헤더 [내 위치 확인하기]로만 위치 확인·광고란 삭제·프로모션 안내창. 배포 상태: QA 검증 전, 배포 안 함 (CEO2 지시 후 배포)
+빌드 날짜: 2026-10-27 10:18 KST · 빌드 번호 1018 · 빌드 폴더 qa/builds/1.8.7/build-1018/ · 빌드 스크립트 scripts/release-1.8.7.sh md5 93f51bc778544d785a499a7300ca5a62
+기준 문서 md5: 기획서 2ab621c7 / 명세 2a2c0098 / 메인 시안 82633a35 / 데이터 4a17930b (실측 2ab621c7c5ae1fe50248397efca1c2ff / 2a2c009860d688dae373636405c251c2 / 82633a35c908f653c3dd32d49b0a19fd / 4a17930b86b0ce60de308bd10c55bb17)
+기획 백업(build-1018): backup/plan-1.8.6.build-1018.md md5 2ab621c7c5ae1fe50248397efca1c2ff (2026-10-27 10:20 KST)
+기획: plan-1.8.6.md 빌드 시작 2ab621c7c5ae1fe50248397efca1c2ff · 끝 2ab621c7c5ae1fe50248397efca1c2ff · 사본 backup/plan-1.8.6.build-1018.md 2ab621c7c5ae1fe50248397efca1c2ff
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 2bb95f5f9a8ffa9681346cac8c084162 (15,986,713바이트) · versionCode 18 · 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION (INTERNET 없음) · 서명 build-1713과 같은 디버그 키(SHA-256 b708689e…7363fe)
+웹: web-dist-1.8.7/ · 공식 목록 qa/builds/1.8.7/build-1018/web-dist-1.8.7-files.md5 md5 44d60f9b3577c25a89c2497f8a595924 (첫 줄 'RELEASE.txt 제외', 29파일, md5sum -c 통과) · 보조 목록(머리줄 없음) web-dist-1.8.7-files-plain.md5 md5 76ced3edc7ab69b87fc7bb22a768a26b · sw.js d71086cfd67ae786efc349492372303c · 셸 캐시 aic-shell-beta-1.8.7-r4
+정답(golden): shared/golden/map-search-1.8.7.json 2c5ad4535d24a50ce70ac9e0f1740bc3 · 지도 검색 md5 전후: 전 07f95ce8 bdf3ed1e 27b95864 · 후 07f95ce8 bdf3ed1e 27b95864
+변경: 위치는 헤더 버튼 requestLocation('header')만(자동 측정 없음, 설정에서 돌아와도 없음) · 거부 상태 [위치 권한 허용]: Android 앱 권한 설정, 웹은 안내 시트(닫기만, 위치 요청 없음, 문구 "권한을 켠 뒤 '내 위치 확인하기'를 눌러 주세요") · 시작 화면: Android 12+ 아이콘 + 브랜딩 이미지 'AI Coffee'(200×80dp, 글자 높이 약 31dp), 11 이하 같은 배치(compat 화면) · 5초 상한 · 광고란 5개 화면 삭제 · AD_ID는 Manifest tools:node="remove" 2줄
+테스트: Android testDebugUnitTest 223건(통과 222·건너뜀 1·실패 0) · assembleDebug 성공 · web r4-check: 46/46 PASS · map-search-187: 273/273 PASS, 0 FAIL · web full: rows 143670, vs_ref_mismatch 0, vs_data_rows 143670, vs_data_mismatch 0, mismatc · golden 53/53 PASS (9 references, walk rows 113) · 21/21 PASS · 160/160 PASS · skip 0 · season 84 · menu 6 · taste 19 · golden183: 60/60 pass · 6:약 70m 1:약 70m 4:약 90m 5:약 90m 7:약 90m 2:약 100m 12:약 150m 9:약 160m 8:약 240m 3:약 330m · value-sort 6/6 PASS · promo185 30/30 PASS · promo186 73/73 PASS · scope-note-check: 16 pass, 0 fail · p8p9-check: 42 pass, 0 fail · link-gate /workspace/ai-cafe/data/1.8.6/brand_links.csv: rows 12, tappable 11, errors 0 · promo-rows /workspace/ai-cafe/web/data/1.8.6/promotions.csv: data rows 10, parsed 10, drop
+미검증: WebKit 화면 검증(이 컴퓨터 WebKit 실행 라이브러리 없음, r4-check는 Chromium), 독립 QA, 에뮬레이터·실기기(Android 11 이하·12+ 시작 화면 포함)
+
+---- 이전 ----
+
+버전: Beta 1.8.7 r4 build-1014 [대체됨: 문구 '켜 뒤'→'켠 뒤' 수정 재빌드] (Android versionCode 18, versionName 'Beta 1.8.7') — 시작 화면·헤더 [내 위치 확인하기]로만 위치 확인·광고란 삭제·프로모션 안내창. 배포 상태: QA 검증 전, 배포 안 함 (CEO2 지시 후 배포)
+빌드 날짜: 2026-10-27 10:14 KST · 빌드 번호 1014 · 빌드 폴더 qa/builds/1.8.7/build-1014/ · 빌드 스크립트 scripts/release-1.8.7.sh md5 e4637d09c44c9949e736e68bc1746aee
+기준 문서 md5: 기획서 2ab621c7 / 명세 2a2c0098 / 메인 시안 82633a35 / 데이터 4a17930b (실측 2ab621c7c5ae1fe50248397efca1c2ff / 2a2c009860d688dae373636405c251c2 / 82633a35c908f653c3dd32d49b0a19fd / 4a17930b86b0ce60de308bd10c55bb17)
+기획 백업(build-1014): backup/plan-1.8.6.build-10.md md5 2ab621c7c5ae1fe50248397efca1c2ff (2026-10-27 10:16 KST)
+기획: plan-1.8.6.md 빌드 시작 2ab621c7c5ae1fe50248397efca1c2ff · 끝 2ab621c7c5ae1fe50248397efca1c2ff (같음, 백업 사본 backup/plan-1.8.6.build-10.md 2ab621c7c5ae1fe50248397efca1c2ff)
+APK: android/AI-Coffee-Beta-1.8.7-debug.apk md5 2bb95f5f9a8ffa9681346cac8c084162 (15,986,713바이트) · versionCode 18 · 권한 ACCESS_FINE_LOCATION·ACCESS_COARSE_LOCATION·DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION (INTERNET 없음) · 서명 build-1713과 같은 디버그 키(SHA-256 b708689e…7363fe)
+웹: web-dist-1.8.7/ (목록 qa/builds/1.8.7/build-1014/web-dist-1.8.7-files.md5 md5 6a24feda0e392d924feccc1dd38eee6f · 첫 줄 'RELEASE.txt 제외' 목록 web-dist-1.8.7-files-list.md5 9be9ef43433554e2a39aa8a54104e9e6, RELEASE.txt 제외 29파일, md5sum -c 통과), sw.js d71086cfd67ae786efc349492372303c, 셸 캐시 aic-shell-beta-1.8.7-r4
+정답(golden): shared/golden/map-search-1.8.7.json 2c5ad4535d24a50ce70ac9e0f1740bc3 · 지도 검색 md5 전후 같음: MapSearch187.kt 07f95ce8 · MapApps.kt bdf3ed1e · web/js/core.js 27b95864
+변경: 위치는 헤더 버튼 requestLocation('header')만(자동 측정 없음, 설정에서 돌아와도 없음) · 거부 상태 [위치 권한 허용]: Android 앱 권한 설정, 웹은 안내 시트(닫기만, 위치 요청 없음) · 시작 화면: Android 12+ 아이콘 + 브랜딩 이미지 'AI Coffee', 11 이하 같은 배치(compat 화면) · 5초 상한 · 광고란 5개 화면 삭제
+테스트: Android testDebugUnitTest 223건(통과 222·건너뜀 1·실패 0, 새 R4DeniedSettingsTest 2·R4SplashBrandTest 2) · assembleDebug 성공 · web r4-check 46/46(Chromium) · map-search-187 273/273 · 전수 143,670행 불일치 0 · golden 53/53 · golden182 160/160 · golden183 60/60 · beta182 21/21 · value-sort 6/6 · promo185 30/30 · promo186 73/73 · scope-note 16/16 · p8p9 42/42 · check-links 오류 0 · check-promo-rows 10/10
+미검증: WebKit 화면 검증(이 컴퓨터 WebKit 실행 라이브러리 없음, r4-check는 Chromium), 독립 QA, 에뮬레이터·실기기(Android 11 이하·12+ 시작 화면 포함)
+
+---- 이전 ----
+
 버전: Beta 1.8.7 r3 (Android versionCode 17, versionName 'Beta 1.8.7') — r2 + 영업시간·메뉴·사진 탭 네이버·카카오 행 안내 '검색으로 열기 ›'. 테스트 통과, QA 전, 배포 안 함(GitHub Pages 미배포)
 빌드 날짜: 2026-10-26 17:13 KST · 빌드 폴더 qa/builds/1.8.7/build-1713/ (로그 첫 줄 run=시각 id src=205fe678ffbc3f70ff039e70f6dd77a7)
 기획: plan-1.8.6.md fcd4bcbdf8da3fb51c62a6eb13e64076(빌드 시작·끝 실측 동일) · 백업 backup/plan-1.8.6.build-9.md

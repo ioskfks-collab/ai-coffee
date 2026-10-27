@@ -6,7 +6,6 @@
   --primary: #4B2E20; --secondary: #8B5E3C; --latte: #E8D5BE; --bg: #FAF5EE; --card: #FFFFFF; --line: #EDE3D7;
   --text: #2B1D14; --text2: #6B5546; --onPrimary: #FFFFFF; --caramel: #C8873A; --okBg: #EEF3ED;
   --warn: #B5483B; --warnBg: #FBEDEA; --scrim: rgba(43, 29, 20, .42);
-  --adStripe1: #ECECEC; --adStripe2: #DEDEDE; --adBorder: #BDBDBD; --adText: #3F3F3F; --adLabel: #333333;
   --k: 1; /* iOS Dynamic Type 보정: 아래 @supports에서 17px 기본값을 16px 기준으로 맞춤 */
   --fs-title: calc(1.375rem * var(--k)); --fs-name: calc(1.0625rem * var(--k)); --fs-price: calc(1.5rem * var(--k));
   --fs-row: calc(1.125rem * var(--k)); --fs-cmp: calc(1.375rem * var(--k)); --fs-body: calc(.875rem * var(--k));
@@ -44,6 +43,12 @@ input, textarea { font: inherit; }
 .topbar .extra { padding-right: 8px; }
 .topbar.back .extra { padding-left: 12px; }
 .iconbtn { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; color: var(--primary); border-radius: 50%; flex: none; }
+.locbtn { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 16px; border-radius: 24px; background: var(--primary); color: #fff; font-weight: 700; font-size: calc(0.9375rem * var(--k)); flex: none; white-space: nowrap; }
+.locbtn:disabled { background: var(--latte); color: var(--text2); }
+.sub.locwarn { color: #B5483B; }
+.topbar .row { flex-wrap: wrap; } .topbar .row .locbtn { margin-left: auto; } /* 2.0배 등으로 제목 옆에 안 들어가면 아래 줄로(말줄임 없음) */
+.big .topbar .row .locbtn { width: 100%; margin-left: 0; }
+.locbtn svg { width: 18px; height: 18px; }
 .iconbtn:active { background: rgba(75, 46, 32, .08); }
 /* 정렬 탭 */
 .sorttabs { display: flex; margin-top: 4px; background: var(--card); border-radius: 999px; padding: 4px; }
@@ -102,10 +107,6 @@ input, textarea { font: inherit; }
   box-shadow: 0 1px 3px rgba(43, 29, 20, .14); width: calc(100% - 24px); text-align: left; }
 .summary .t { flex: 1; padding: 6px 0; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .summary .i { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: var(--primary); }
-.ad { position: relative; margin: 6px 12px; min-height: 56px; border: 1px solid var(--adBorder); border-radius: 14px; overflow: hidden; display: flex; align-items: center; padding: 4px 12px;
-  background: repeating-linear-gradient(135deg, var(--adStripe1) 0 6px, var(--adStripe2) 6px 9px); font-family: -apple-system, 'Apple SD Gothic Neo', sans-serif; }
-.ad .lbl { background: var(--adLabel); color: #fff; font-size: var(--fs-sub); border-radius: 3px; padding: 1px 5px; flex: none; }
-.ad .txt { color: var(--adText); font-size: var(--fs-sub); line-height: 1.3; margin-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 하단 탭 */
 .tabs { display: flex; background: var(--card); padding: 12px 0 calc(var(--sab) + 12px); }
 .tabs button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text2); font-size: var(--fs-sub); font-weight: 700; min-height: 56px; }
@@ -272,3 +273,19 @@ html.big .trow.sz { flex-direction: column; align-items: stretch; } html.big .tr
 .mapaddr { background: var(--bg); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 21px; word-break: keep-all; }
 .mapquery b { color: var(--text); }
 .mapquery, .looknote { font-size: 13px; line-height: 19px; }
+.scroll.list > :last-child, .scroll[data-keep] > :last-child { margin-bottom: 16px; } /* 1.8.7 r4: 광고란 자리 → 목록, 마지막 카드 아래 16dp */
+/* 1.8.7 r4 시작 화면(UI 2a2c0098 §1): #FAF5EE, 아이콘 96, 아래 16 'AI Coffee' 22 Bold #4B2E20, 애니메이션 없음 */
+#splash { position: fixed; inset: 0; z-index: 50; background: #FAF5EE; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#splash img { width: 96px; height: 96px; border-radius: 22px; }
+#splash p { margin-top: 16px; font-size: 22px; font-weight: 700; color: #4B2E20; }
+/* 1.8.7 r4 시작 안내창(§4): 제목 18 Bold, 요약 15 Bold, 출처 14, 버튼 48/24 세로·간격 8, 말줄임 없음(keep-all) */
+.promonotice { padding: 24px 16px 16px; word-break: keep-all; }
+.promonotice .pn-title { font-size: calc(1.125rem * var(--k)); line-height: 1.35; font-weight: 700; color: var(--text); }
+.promonotice .pn-sum { font-size: calc(0.9375rem * var(--k)); font-weight: 700; color: var(--text); margin-top: 8px; }
+.promonotice .pn-src { font-size: calc(0.875rem * var(--k)); color: var(--text2); margin-top: 4px; }
+.promonotice .pn-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.promonotice .pn-btn { min-height: 48px; border-radius: 24px; width: 100%; font-size: calc(0.9375rem * var(--k)); font-weight: 700; white-space: normal; }
+.promonotice .pn-btn.pri { background: var(--primary); color: #fff; }
+.promonotice .pn-btn.txt { background: #fff; color: var(--primary); }
+.promonotice .pn-btn.sec { background: var(--latte); color: var(--primary); }
+.nowrap { white-space: nowrap; }

@@ -42,6 +42,8 @@ export const Promotions = {
   isVisible(start, end, now) { const t = +now; if (start && t < kstMs(start)) return false; return t < kstMs(end) + 86400e3; },
   /** Beta 1.8.6: 기간 안 + (recur 있으면) KST 요일 일치 */
   isVisibleRecur(start, end, recur, now) { return this.isVisible(start, end, now) && (recur == null || kstWeekday(+now) === recur); },
+  /** 1.8.7 r4: 오늘 날짜(KST, YYYY-MM-DD) — 기기 시간대 무관. 안내창 '오늘 하루 보지 않기' 비교에 씀 */
+  kstToday(now) { return new Date(+now + 9 * 3600e3).toISOString().slice(0, 10); },
   visible(items, now) { return items.filter(p => this.isVisibleRecur(p.startDate, p.endDate, p.recurWeekday ?? null, now)); },
   forBrand(items, brand, now) { return this.visible(items, now).filter(p => p.brand === brand); },
 };
@@ -61,3 +63,22 @@ export const PromoData = { items: [], checked: null, failed: false, loading: fal
     Object.assign(this, Promotions.stateOf(t)); this.loading = false; this.ready = true; } };
 export const Promo185 = { SECTION: '공식 프로모션·이벤트', EMPTY: '현재 확인된 공식 프로모션이 없습니다', LINK: '공식 출처 보기 ›', NET_NOTE: '외부 브라우저로 열려요 · 인터넷 연결 필요', sourceLine: p => `공식 출처 · 데이터 확인일 ${p.checkedDate}`,
   FAIL: '프로모션 정보를 불러오지 못했어요', RETRY: '다시 시도', LOADING: '불러오는 중…', MORE: '더 보기', LESS: '접기', checkedLine: d => `데이터 확인일 ${d}` };
+
+// 1.8.7 r4: 시작 안내창 '오늘 하루 보지 않기' 저장 키(localStorage, 값 = kstToday). Android: DataStore promoHideDate
+export const PROMO_HIDE_KEY = 'aic.promoHideDate';
+
+// 1.8.7 r4 시작 안내창(UI 명세 2a2c0098 §3~§6). 셈은 목록과 같은 Promotions.visible. Android data/Promotions.kt PromoNotice와 같음
+export const PromoNotice = {
+  CAP_MS: 5000, // 시작 화면 5초 상한(CEO2 확정)
+  TITLE: '공식 프로모션·이벤트 확인하기!', SRC: '브랜드 공식 홈페이지 기준 · 추천 순위와 무관',
+  summary: (n, m) => `진행 중인 공식 프로모션 ${n}개 · 브랜드 ${m}곳`, checkedLine: d => `데이터 확인일 ${d}`,
+  OPEN: '확인하기', HIDE_TODAY: '오늘은 그만 보기', CLOSE: '닫기',
+  /** 띄울지 판단: 로딩 중·실패·5초 초과·다른 창·이미 이동·N=0·오늘 그만 보기면 null */
+  decide({ ready, failed, items, now, hideDate, otherOpen = false, moved = false, timedOut = false }) {
+    if (!ready || failed || timedOut || otherOpen || moved) return null;
+    const v = Promotions.visible(items, now); if (!v.length) return null;
+    if (hideDate === Promotions.kstToday(now)) return null;
+    const brands = [...new Set(v.map(p => p.brand))];
+    return { n: v.length, m: brands.length, brands };
+  },
+};

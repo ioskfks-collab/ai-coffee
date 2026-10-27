@@ -4,7 +4,7 @@ import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radiu
 import { I } from './icons.js';
 import { ID_MAP_R2_R3, ID_MAP_R3_R4 } from './idmap.js';
 import { MenuLinks, Seasonal, TasteTags, MyMenu, TastePrefs, Data182 } from './beta182.js';
-import { Promotions, PromoData, Promo185, recurLabel } from './promotions.js';
+import { Promotions, PromoData, Promo185, recurLabel, PromoNotice, PROMO_HIDE_KEY } from './promotions.js';
 import { BrandLinks, LinkData, P9 } from './brandlinks.js';
 import { PhotoLinks, IndPriceTable, indLabel, indSourceLine } from './beta183.js';
 
@@ -85,29 +85,42 @@ async function loadDb() {
 }
 
 // ---------- 위치(navigator.geolocation만) ----------
-let locReq = 0;
-function requestGps() {
-  if (!locOK()) return;
-  if (!('geolocation' in navigator)) { S.locStatus = 'fail'; S.locErr = '이 브라우저에서 위치를 쓸 수 없어요'; render(); return; }
-  const id = ++locReq; S.locStatus = 'measuring'; S.loc = null; render();
+// 1.8.7 r4(P12·P14): 위치는 버튼을 눌렀을 때만 확인. 진입점은 requestLocation(trigger) 하나(호출처: 주변 카페 헤더 버튼),
+// 위치 API(getCurrentPosition) 호출은 fixGps() 한 곳뿐. 앱 실행·동의 직후·화면 복귀 시 자동 측정 없음.
+// 좌표는 S.loc(메모리)에만 두고 저장·전송하지 않음. 디버그 로그는 기기 안 메모리에만(좌표 없음: trigger·시각·결과 상태).
+export const LocLog = { max: 50, items: [], add(trigger, state) { const e = { trigger, at: new Date().toISOString(), state }; this.items.push(e); if (this.items.length > this.max) this.items.shift(); try { console.debug('[loc]', trigger, state); } catch { } } };
+let locReq = 0, locTrigger = null;
+function fixGps(trigger) {
+  if (!('geolocation' in navigator)) { S.locStatus = 'fail'; S.locErr = '이 브라우저에서 위치를 쓸 수 없어요'; LocLog.add(trigger, 'failed'); render(); return; }
+  const id = ++locReq; S.locStatus = 'measuring'; LocLog.add(trigger, 'checking'); render();
   navigator.geolocation.getCurrentPosition(p => {
     if (id !== locReq) return;
-    S.loc = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; S.locStatus = 'ok'; S.consent.os = null; S.area = null; render();
+    S.loc = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; S.locStatus = 'ok'; S.consent.os = null; S.area = null; LocLog.add(trigger, 'ok'); render();
   }, err => {
     if (id !== locReq) return;
-    if (err && err.code === 1) { S.consent.os = 'denied'; S.locStatus = 'denied'; S.locErr = '위치 권한이 허용되지 않았어요'; persist(); }
-    else { S.locStatus = 'fail'; S.locErr = '현재 위치를 받지 못했어요. 기기 위치 서비스가 켜져 있는지 확인해 주세요.'; }
-    S.loc = null; render();
+    if (err && err.code === 1) { S.consent.os = 'denied'; S.locStatus = 'denied'; S.locErr = '위치 권한이 허용되지 않았어요'; persist(); LocLog.add(trigger, 'denied'); }
+    else { S.locStatus = 'fail'; S.locErr = '현재 위치를 받지 못했어요. 기기 위치 서비스가 켜져 있는지 확인해 주세요.'; LocLog.add(trigger, 'failed'); }
+    render();
   }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
 }
-// Beta 1.7(QA-Web ③): 새로고침·재실행 후 상세·메뉴 비교 등 어느 화면에서 시작하든, 위치 동의 상태인데 메모리에 위치가 없으면 바로 다시 측정.
-// 좌표는 저장하지 않으므로 다시 열면 항상 비어 있음. 수동 지역 선택 중이거나 거부·실패 상태면 자동 측정하지 않음.
-const needsAutoFix = () => locOK() && !S.loc && !S.area && S.locStatus === 'idle';
-function autoFix() { if (needsAutoFix()) requestGps(); }
-document.addEventListener('visibilitychange', async () => { // 설정에서 권한을 켜고 돌아오면 다시 측정
-  if (document.visibilityState !== 'visible' || !locOK() || S.loc || !['denied', 'fail'].includes(S.locStatus)) return;
-  try { const p = await navigator.permissions?.query({ name: 'geolocation' }); if (p && p.state === 'granted') requestGps(); } catch { }
-});
+/** 위치 확인 유일한 진입점: 앱 동의(처음 한 번, 만 14세 확인 포함) → OS 권한(브라우저가 필요할 때만 물음) → GPS 1회 */
+export function requestLocation(trigger) {
+  if (S.consent.age === 'u14') { S.locStatus = 'denied'; LocLog.add(trigger, 'denied'); openSheet({ type: 'region', sido: null }); return; }
+  if (!locOK()) { locTrigger = trigger; LocLog.add(trigger, 'consent'); go(S.consent.age == null ? 'c01' : 'c02'); return; }
+  fixGps(trigger);
+}
+/** 같은 탭에서 시작한 동의 흐름이 '동의'로 끝났을 때만 이어서 측정(자동 측정 아님). 거부하면 버림 */
+function resumeAfterConsent(agreed) { const t = locTrigger; locTrigger = null; if (agreed && t && locOK()) fixGps(t); }
+// 1.8.7 r4(CEO2 10:08): 거부 상태 [위치 권한 허용] → 안내 시트(닫기만). 위치·권한 요청 없음, 설정에서 돌아와도 자동 측정 없음
+export const PERM_HELP_BTN = '위치 권한 허용';
+export const PERM_HELP_LINES = ['iPhone: 설정 › 개인정보 보호 및 보안 › 위치 서비스 › Safari 웹 사이트를 \'앱을 사용하는 동안\'으로 바꿔 주세요.', 'Safari: 주소창의 aA(또는 페이지 메뉴) › 웹 사이트 설정 › 위치를 \'허용\' 또는 \'묻기\'로 바꿔 주세요.', '다른 브라우저: 주소창 옆 사이트 설정(자물쇠) › 위치 › 허용으로 바꿔 주세요.'];
+export const PERM_HELP_NEXT = "권한을 켠 뒤 '내 위치 확인하기'를 눌러 주세요";
+/** 헤더 '내 위치 확인하기' 버튼 상태: idle · checking · denied · failed */
+const locBtnState = () => S.locStatus === 'measuring' ? 'checking' : S.locStatus === 'denied' ? 'denied' : S.locStatus === 'fail' ? 'failed' : 'idle';
+export const LOC_BTN = { idle: '내 위치 확인하기', checking: '확인 중…', denied: '내 위치 확인하기', failed: '다시 확인하기' };
+export const LOC_SUB = { idle: '아직 위치를 확인하지 않았어요', checking: '현재 위치 확인 중…', denied: '위치 권한이 꺼져 있어요', failed: '위치를 받지 못했어요' };
+export const LOC_NONE = LOC_SUB.idle;
+export const NO_LOC_DIST = '위치 확인 전이라 거리를 표시하지 않아요';
 
 // ---------- 계산(캐시) ----------
 let nearCache = null;
@@ -185,10 +198,9 @@ const listRow = (t, fn) => `<button class="listrow" data-a="${act(fn)}"><span>${
 const badge = (t, k = '') => `<span class="badge ${k}">${esc(t)}</span>`;
 const typeBadge = i => EN.db.isFr(i) ? badge('프랜차이즈') : badge('개인 카페(추정)', 'ind');
 const emptyCup = () => `<div class="cup" aria-hidden="true">${I.cup}</div>`;
-const ad = () => `<div class="ad" role="img" aria-label="광고 · 비개인화 광고 자리(예시) · 커피 브랜드 광고 차단"><span class="lbl">광고</span><span class="txt">비개인화 광고 자리(예시)</span></div>`;
-function topBar(title, { sub: sb, onBack, right, extra } = {}) {
+function topBar(title, { sub: sb, onBack, right, extra, subWarn } = {}) {
   return `<header class="topbar ${onBack ? 'back' : ''}"><div class="row">${onBack ? `<button class="iconbtn" aria-label="뒤로" data-a="${act(onBack)}">${I.back}</button>` : ''}
-    <div class="ttl" role="heading" aria-level="1"><h1 class="title">${esc(title)}</h1>${sb ? `<p class="sub">${esc(sb)}</p>` : ''}</div>${right || ''}</div>
+    <div class="ttl" role="heading" aria-level="1"><h1 class="title">${esc(title)}</h1>${sb ? `<p class="sub${subWarn ? ' locwarn' : ''}">${esc(sb)}</p>` : ''}</div>${right || ''}</div>
     ${extra ? `<div class="extra">${extra}</div>` : ''}</header>`;
 }
 const EX_NOTICE = '브랜드 가격·별점: 예시 데이터 · 착한가격업소: 공공데이터';
@@ -253,9 +265,10 @@ function locationHelp() {
   else if (S.locStatus === 'denied') h += box(`<p class="b">위치 권한이 필요해요</p><p class="pre">주변 1km 매장은 현재 위치(GPS)로 찾아요. 위치 좌표는 기기 안에서만 쓰고 밖으로 보내지 않아요.
 위치를 거부했다면 iPhone 설정 › 개인정보 보호 및 보안 › 위치 서비스 › Safari 웹 사이트를 '앱을 사용하는 동안'으로 바꾸고, Safari 주소창의 aA(또는 페이지 메뉴) › 웹 사이트 설정 › 위치를 '허용' 또는 '묻기'로 바꿔 주세요.
 위치 없이 시·구를 직접 골라 찾을 수도 있어요.</p>`, 'warn')
-    + btn('위치 권한 허용', requestGps, 'pri') + areaBtn() + btn('다시 시도', requestGps);
-  else if (S.locStatus === 'fail') h += box(`<p class="b">${esc(S.locErr || '위치를 측정하지 못했어요')}</p><p>실내라면 창가로 이동하거나 잠시 후 다시 시도해 주세요.</p>`, 'warn') + btn('다시 시도', requestGps, 'pri') + areaBtn();
-  else { if (S.locStatus !== 'measuring') queueMicrotask(requestGps); h += `<p class="b">현재 위치 확인 중…</p>${sub('위치는 기기 안에서만 써요.')}<div class="progress"></div>`; }
+    + btn(PERM_HELP_BTN, () => openSheet({ type: 'permHelp' }), 'pri', false, 'id="permHelpBtn"') + areaBtn(); // 1.8.7 r4(CEO2 10:08): 웹은 위치를 요청하지 않고 안내 시트만 엶
+  else if (S.locStatus === 'fail') h += box(`<p class="b">${esc(S.locErr || '위치를 측정하지 못했어요')}</p><p>실내라면 창가로 이동하거나 잠시 후 다시 시도해 주세요.</p>`, 'warn') + areaBtn();
+  else if (S.locStatus === 'measuring') h += `<p class="b">현재 위치 확인 중…</p>${sub('위치는 기기 안에서만 써요.')}<div class="progress"></div>` + areaBtn();
+  else h += `<p class="b" style="font-size:var(--fs-17)">위치를 확인하면 주변 1km 카페를 보여 드려요</p>${sub('위에 있는 [내 위치 확인하기]를 눌러 주세요. 위치는 기기 안에서만 써요.')}` + areaBtn();
   return h;
 }
 function exclNotes(r) {
@@ -277,7 +290,7 @@ function nearList(ns) {
     h += `<div class="empty">${emptyCup()}`;
     if (r.fallback.length) h += `<p class="b" style="font-size:var(--fs-17);line-height:1.41;margin-top:8px">1km 안에 카페가 없어요. 3km까지 찾아봤어요</p>${sub((F.active(f) ? '조건에 맞는 가장 가까운 매장' : '가장 가까운 매장') + ' · 3km 이내 · 거리순 · 추천 점수 없이 거리순으로만 보여 줘요. 반경은 자동으로 넓히지 않아요.', 'margin:4px 0')}`;
     else if (F.active(f)) h += `<div style="width:100%;text-align:left"><p class="b" style="padding:8px 0">3km 안에도 조건에 맞는 매장이 없어요.</p>${relaxBlock(ns.relax)}</div>`;
-    else h += `<p class="b" style="font-size:var(--fs-17);padding:8px 0">3km 안에도 카페가 없어요</p>${manual() ? '' : btn('위치 다시 측정', requestGps)}`;
+    else h += `<p class="b" style="font-size:var(--fs-17);padding:8px 0">3km 안에도 카페가 없어요</p>`;
     h += '</div>';
     const fbP = r.fallback.filter(e => e.size), fbN = r.fallback.filter(e => !e.size);
     h += fbP.map(e => storeCard(e, 0, true)).join('');
@@ -378,8 +391,8 @@ function seasonSection(brand) {
 }
 function NearScreen() {
   const L = ref(); const ns = nearState(); const man = manual();
-  const head = topBar('주변 카페', { sub: man ? `반경 1km · 선택 지역 기준 · ${S.area.label}` : L ? `반경 1km · GPS 기준 · 정확도 약 ${Math.trunc(L.acc || 0)}m` : null,
-    right: L && !man ? `<button class="iconbtn" aria-label="위치 다시 측정" data-a="${act(requestGps)}">${I.refresh}</button>` : '',
+  const head = topBar('주변 카페', { sub: man ? `반경 1km · 선택 지역 기준 · ${S.area.label}` : L ? `반경 1km · GPS 기준 · 정확도 약 ${Math.trunc(L.acc || 0)}m` : LOC_SUB[locBtnState()], subWarn: !L && !man && ['denied', 'failed'].includes(locBtnState()),
+    right: `<button class="locbtn" data-loc="${locBtnState()}" aria-label="내 위치 확인하기" ${S.locStatus === 'measuring' ? 'aria-busy="true" disabled' : ''} data-a="${act(() => requestLocation('header'))}">${I.placeOff}<span>${LOC_BTN[locBtnState()]}</span></button>`,
     extra: EN ? `<div style="display:flex;flex-direction:column;gap:2px">${catTabs()}${L && S.homeCat === 'near' ? sortTabs() + chipBar() : ''}</div>` : null });
   let body; const cat = EN && !S.dbError ? S.homeCat : 'near';
   if (cat === 'fav') body = `<div class="scroll" data-keep="fav">${favBody()}</div>`;
@@ -392,7 +405,6 @@ function NearScreen() {
   UI.anim = false;
   let foot = '';
   if (ns && cat === 'near') { const r = ns.r; foot += `<button class="summary" data-a="${act(() => openSheet({ type: 'nearInfo' }))}"><span class="t">${esc(`${MenuTable.menuName(ns.filter.menu)} · 1km 안 ${r.main.length + r.noPriceList.length}곳 · 예시 가격 포함`)}</span><span class="i" aria-label="현재 기준·가격·별점 안내 열기">${I.info}</span></button>`; }
-  if (L && EN) foot += ad();
   return head + body + foot;
 }
 
@@ -422,7 +434,7 @@ function StoreScreen(i) {
   const db = EN.db; const R0 = ref(); const d = R0 ? Geo.dist(db, i, R0) : null; const t = EN.taste(i); const mk = S.filter.menu;
   const cmp = k => () => { A.setFilter({ ...S.filter, menu: k }); go('compare'); };
   let b = `<h2 class="title" style="padding-top:6px;white-space:normal">${esc(db.name[i])}</h2>
-    <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distPlain(d) : '위치 미정'}</span>${d != null && Geo.showWalk(d) ? ' · <span class="nowrap">' + Geo.walkText(d) + '</span>' : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
+    <p class="t15" style="margin-top:2px"><span class="b" style="color:var(--secondary)">${d != null ? Geo.distPlain(d) : NO_LOC_DIST}</span>${d != null && Geo.showWalk(d) ? ' · <span class="nowrap">' + Geo.walkText(d) + '</span>' : ''}${d != null && manual() ? ' · 선택 지역 기준' : ''}</p>
     <p>주소: ${esc(db.addr[i])}</p>
     <div class="flow" style="padding-top:6px;row-gap:4px">${typeBadge(i)}${d != null && d > Radius.SEARCH_M ? badge('1km 밖') : ''}${EN.gp.has(i) ? badge('착한가격업소') : ''}</div>` + (db.isFr(i) ? seasonSection(db.brandName(i)) + promoSection(db.brandName(i)) + p9Detail(db.brandName(i)) : '') + h3('메뉴 가격');
   if (db.isFr(i)) {
@@ -466,7 +478,7 @@ function StoreScreen(i) {
   b += `<div style="height:4px"></div><hr>` + `<button class="listrow hoursrow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'hours' }))}"><span>${HOURS_ROW}<br><span class="sub">${HOURS_ROW_NOTE}</span></span></button><hr><button class="listrow menurow" data-a="${act(() => openSheet({ type: 'map', i, tab: 'menu' }))}"><span>${MENU_ROW}<br><span class="sub">${MENU_ROW_NOTE}</span></span></button>`;
   b += `<div class="fold"><hr><button aria-expanded="${open}" data-a="${act(() => { UI.fold = !UI.fold; render(); })}"><span>출처·안내 · 추천 점수</span>${open ? I.up : I.down}</button>${open ? `<div class="content">${fold}</div>` : ''}</div>`;
   b += '<hr>' + listRow('정보 제보·신고', () => openSheet({ type: 'report', i }));
-  return h + `<div class="scroll" data-keep="store">${b}</div><div class="cta">${btn('지도 앱으로 길찾기', () => openSheet({ type: 'map', i }), 'pri')}</div>` + ad();
+  return h + `<div class="scroll" data-keep="store">${b}</div><div class="cta">${btn('지도 앱으로 길찾기', () => openSheet({ type: 'map', i }), 'pri')}</div>`;
 }
 
 // ---------- 메뉴 비교 ----------
@@ -494,7 +506,7 @@ function CompareScreen() {
       return `<div class="cmp ${n === 0 ? 'first' : ''} ${n === rows.length - 1 ? 'last' : ''} ${top ? 'top' : ''}">${n > 0 ? '<hr>' : ''}<div class="r"><span class="bar"></span><div class="m">
         <div class="rowc" style="gap:6px"><span class="bn">${esc(r.b)}</span>${top ? badge('최저', 'top') : ''}</div>
         ${!r.s ? `<p class="c2">가격 미입력</p>` : `<div class="pl">${r.s.verified ? `<span class="chk" style="width:18px;height:18px" aria-label="확인된 가격">${I.check}</span>` : ''}<span class="cmpprice">${won(r.s.p)}</span><span class="sub">${esc([r.s.n, r.s.ml != null ? MenuTable.mlText(r.s) : null].filter(Boolean).join(' · '))}</span>${Engine.isOld(r.s.d) ? badge('오래된 가격', 'dark') : ''}</div>`}
-        </div><span class="d ${d != null ? 'numtxt' : 'sub'}" aria-label="${d != null ? '1km 안 가장 가까운 매장 ' + Geo.distText(d) : '1km 안 매장 없음'}">${d != null ? Geo.distText(d) : ref() ? '1km 안 없음' : '-'}</span></div></div>`; }).join('');
+        </div><span class="d ${d != null ? 'numtxt' : 'sub'}" aria-label="${d != null ? '1km 안 가장 가까운 매장 ' + Geo.distText(d) : '1km 안 매장 없음'}">${d != null ? Geo.distText(d) : ref() ? '1km 안 없음' : NO_LOC_DIST}</span></div></div>`; }).join('');
     b += `<div style="padding-top:6px">${noVol > 0 ? box(`<div class="rowc"><p style="flex:1">용량 미공개 ${noVol}개 브랜드 제외됨</p>${btn(S.inc.NO_VOL ? '다시 빼기' : '포함해서 보기', () => A.toggleInc('NO_VOL'), 'sec inline')}</div>`) : ''}${noFit > 0 ? sub(`조건에 맞는 사이즈가 없는 브랜드 ${noFit}개는 표에서 뺐어요.`) : ''}</div>`;
   }
   b += h3('1km 안 매장 가격 · 메뉴판 가격 낮은 순');
@@ -505,7 +517,7 @@ function CompareScreen() {
   if (EN && ns) b += ns.cmpList.map(e => storeCard(e, 0, false)).join('');
   if (ns && ns.cmpNoPriceInd > 0) b += sub(`가격 정보가 없는 개인 카페 ${ns.cmpNoPriceInd}곳은 표에 넣지 않았어요.`);
   b += sub('등록된 브랜드·카페와 제휴 관계가 없어요. 용량 환산 가격은 쓰지 않아요.', 'padding:12px 0');
-  return topBar('메뉴 가격 비교', { sub: manual() ? `거리: 선택 지역 기준 · ${S.area.label}` : null, extra: chipBar() }) + `<div class="scroll list" data-keep="compare">${b}</div>` + ad();
+  return topBar('메뉴 가격 비교', { sub: manual() ? `거리: 선택 지역 기준 · ${S.area.label}` : null, extra: chipBar() }) + `<div class="scroll list" data-keep="compare">${b}</div>`;
 }
 
 // ---------- 즐겨찾기 ----------
@@ -518,7 +530,7 @@ function FavScreen() {
     const e = { ...(EN.evalStore(i, f0) || { i, size: null, ss: EN.storeSizes(i, f0.menu), reason: null, t: EN.taste(i) }), d };
     return storeCard(e, 0, R0 != null && d > Radius.SEARCH_M);
   }).join('');
-  return topBar('즐겨찾기', { sub: '이 기기에만 저장 · ' + (manual() ? '선택 지역 기준 거리' : '현재 위치 기준 거리'), extra: `<p class="sub" style="padding-top:2px">${EX_NOTICE}</p>` }) + `<div class="scroll" data-keep="fav">${b}</div>` + (S.favs.length ? ad() : '');
+  return topBar('즐겨찾기', { sub: '이 기기에만 저장 · ' + (manual() ? '선택 지역 기준 거리' : '현재 위치 기준 거리'), extra: `<p class="sub" style="padding-top:2px">${EX_NOTICE}</p>` }) + `<div class="scroll" data-keep="fav">${b}</div>`;
 }
 
 // ---------- 정보·문서 ----------
@@ -527,17 +539,17 @@ const MAPTXT = "앱 안 지도는 없어요. '길 안내'를 누르면 고른 �
 const DOCS = {
   terms: ['서비스 이용약관', '문안 확정 전 · 정식 출시 전 변호사 검토\n\n· 로그인 없이 이용, 익명 기기 ID 사용\n· 이용자 별점·제보의 이용 허락 범위 (문안 자리)\n· 다른 서비스에서 복사한 정보 제보 금지, 자체 DB 무단 수집 금지\n· 권리침해 신고 → 소명 확인 → 정정 또는 30일 이내 임시조치 → 통지 → 앱 안 공시(정보통신망법 제44조의2)\n· 포괄 면책 조항을 두지 않아요'],
   lbs: ['위치기반서비스 이용약관', `문안 확정 전\n\n· 개인위치정보는 기기 안에서 거리 계산에만 쓰고 서버·지도 앱·광고로 보내거나 저장하지 않아요\n· ${MAPTXT}\n· 동의는 선택이며 언제든 철회할 수 있어요\n· 감독기관: 방송미디어통신위원회`],
-  privacy: ['개인정보처리방침', `문안 확정 전\n\n· 수집: 익명 기기 ID, 별점, 제보·신고 내용, 제출 날짜\n· 수집 안 함: 이름·전화번호·이메일·광고 ID·위치 좌표\n· 외부 지도 앱: ${MAPTXT}\n· 보유·파기: (확정 전)\n· 광고 SDK별 사업자·수집 항목·국외 이전: (SDK 선정 후 기재) — 현재 베타는 광고 SDK 없음, 배너 자리만\n· 문의처: (확정 전) · 감독기관: 개인정보보호위원회`],
+  privacy: ['개인정보처리방침', `문안 확정 전\n\n· 수집: 익명 기기 ID, 별점, 제보·신고 내용, 제출 날짜\n· 수집 안 함: 이름·전화번호·이메일·광고 ID·위치 좌표\n· 외부 지도 앱: ${MAPTXT}\n· 보유·파기: (확정 전)\n· 광고와 광고 SDK가 없어요\n· 문의처: (확정 전) · 감독기관: 개인정보보호위원회`],
   policy: ['별점 운영정책', '1. 평가 자격: 앱을 쓰는 기기, 해당 매장 100m 안 현장 확인(기기 안에서만 판정), 기기당 매장 1개(수정 가능, 재등록 30일 후). 이해관계자는 평가할 수 없어요.\n2. 노출 기간: 최근 12개월 별점을 게시하고 평균에 반영해요.\n3. 계산 방식: 평균 + 베이지안 보정(브랜드 평균 또는 개인 카페 평균). 별점 5개 미만은 \'별점 부족\'.\n4. 삭제·보류 기준: 스팸, 현장 확인 우회, 자동화 의심, 이해관계자 평가, 복사한 정보일 때만. 점수가 낮다는 이유로 지우지 않아요.\n5. 이의제기: 앱 안 신고 창구, 영업일 3일 안 검토(초기값).\n6. 보상 없음: 별점·제보에 대가를 주지 않아요.\n7. 기록 보관: 처리 기록 보관(기간 확정 전).\n8. 임시조치: 권리침해 신고 → 소명 확인 → 정정 또는 30일 이내 임시조치 → 통지 → 앱 안 공시.'],
-  criteria: ['추천 기준 설명 · 점수 기반 추천', '점수 기반 추천(거리·메뉴판 가격·앱 이용자 별점 가중합)이에요. 반경 1km 안 매장만 점수를 계산해요(별점·가격 제보의 현장 확인은 별도 규칙으로 매장 100m 안).\n\n· 균형: 거리 0.4 · 가격 0.3 · 별점 0.3\n· 가까운 곳: 거리순 정렬\n· 가성비: 가격 80% + 이용자 별점 20%(별점 5개 이상일 때). 가격 점수 = (목록 최고가 − 가격)/(최고가 − 최저가), 거리는 반영 안 함\n· 이용자 별점: 0.2 · 0.2 · 0.6\n\n· 거리: 1 − 거리/1km (기기 안 직선거리, 앱 안 지도 없음)\n· 가격: 1 − (같은 메뉴의 12개 브랜드 메뉴판 가격 중 백분위). 모집단 고정, 용량 환산 없음.\n· 별점: 베이지안 보정 (v/(v+m))·R + (m/(v+m))·C, m=10. 별점 5개 미만은 \'별점 부족\'.\n· 결측: 없는 항목의 가중치는 나머지에 비례 재분배하고 \'정보 부족\' 배지. 모든 정렬에서 선택 메뉴 가격이 없는 매장은 순위에 넣지 않고 맨 아래 \'가격 정보 없음\' 묶음에 같은 정렬 순서로 보여줘요(3km 대체 목록도 동일).\n· 필터는 결과를 걸러낼 뿐 정렬을 바꾸지 않아요.\n· 광고 여부는 추천 점수와 순위에 영향을 주지 않아요.'],
-  sources: ['데이터 출처·기준일 · 제휴 없음 · 광고 안내', `· 매장(상호·주소·좌표): 소상공인시장진흥공단 상가(상권)정보, 기준일 2026-06-30, 소분류 I21201 '카페'. Beta 1.8.3에서 추가된 매장 40,749곳: 행정안전부 휴게음식점 인허가 (data.go.kr 15006730) 기준일 2026-10-14(영업/정상, 업태 커피숍 등 카페). 전국 파일 하나를 처음 한 번 받아 기기에 저장하고, 모든 사용자가 같은 파일을 써요(위치에 따라 받는 파일이 달라지지 않아요).\n· 개인 카페는 분류 규칙에 따른 추정이라 '개인 카페(추정)'으로 표시해요.\n· 브랜드 기본 가격: 예시 가격(확인 전) — 12개 브랜드 공식 사이트가 가격을 게시하지 않아 매장 메뉴판으로 확인 전이에요.\n· 용량: 공식 게시값만 표시(빽다방 아메리카노·라떼, 할리스 R/G/V, 폴바셋 룽고), 나머지는 미공개.\n· 개인 카페 가격: 착한가격업소 공공데이터(2026-06-30 기준) 메뉴판 가격, 용량 미공개. 음료가 아닌 메뉴는 비교·필터·점수에서 빼요.\n· 별점은 예시 데이터예요.\n· 지도: ${MAPTXT}\n· 등록된 브랜드·카페와 제휴 관계가 없어요. 브랜드 로고·메뉴 사진은 쓰지 않아요.\n· 광고: 작은 비개인화 배너만, '광고' 라벨. 커피 브랜드 광고는 차단해요. 이 베타는 광고 SDK 없이 자리만 표시해요.`],
+  criteria: ['추천 기준 설명 · 점수 기반 추천', '점수 기반 추천(거리·메뉴판 가격·앱 이용자 별점 가중합)이에요. 반경 1km 안 매장만 점수를 계산해요(별점·가격 제보의 현장 확인은 별도 규칙으로 매장 100m 안).\n\n· 균형: 거리 0.4 · 가격 0.3 · 별점 0.3\n· 가까운 곳: 거리순 정렬\n· 가성비: 가격 80% + 이용자 별점 20%(별점 5개 이상일 때). 가격 점수 = (목록 최고가 − 가격)/(최고가 − 최저가), 거리는 반영 안 함\n· 이용자 별점: 0.2 · 0.2 · 0.6\n\n· 거리: 1 − 거리/1km (기기 안 직선거리, 앱 안 지도 없음)\n· 가격: 1 − (같은 메뉴의 12개 브랜드 메뉴판 가격 중 백분위). 모집단 고정, 용량 환산 없음.\n· 별점: 베이지안 보정 (v/(v+m))·R + (m/(v+m))·C, m=10. 별점 5개 미만은 \'별점 부족\'.\n· 결측: 없는 항목의 가중치는 나머지에 비례 재분배하고 \'정보 부족\' 배지. 모든 정렬에서 선택 메뉴 가격이 없는 매장은 순위에 넣지 않고 맨 아래 \'가격 정보 없음\' 묶음에 같은 정렬 순서로 보여줘요(3km 대체 목록도 동일).\n· 필터는 결과를 걸러낼 뿐 정렬을 바꾸지 않아요.'],
+  sources: ['데이터 출처·기준일 · 제휴 없음 · 광고 없음', `· 매장(상호·주소·좌표): 소상공인시장진흥공단 상가(상권)정보, 기준일 2026-06-30, 소분류 I21201 '카페'. Beta 1.8.3에서 추가된 매장 40,749곳: 행정안전부 휴게음식점 인허가 (data.go.kr 15006730) 기준일 2026-10-14(영업/정상, 업태 커피숍 등 카페). 전국 파일 하나를 처음 한 번 받아 기기에 저장하고, 모든 사용자가 같은 파일을 써요(위치에 따라 받는 파일이 달라지지 않아요).\n· 개인 카페는 분류 규칙에 따른 추정이라 '개인 카페(추정)'으로 표시해요.\n· 브랜드 기본 가격: 예시 가격(확인 전) — 12개 브랜드 공식 사이트가 가격을 게시하지 않아 매장 메뉴판으로 확인 전이에요.\n· 용량: 공식 게시값만 표시(빽다방 아메리카노·라떼, 할리스 R/G/V, 폴바셋 룽고), 나머지는 미공개.\n· 개인 카페 가격: 착한가격업소 공공데이터(2026-06-30 기준) 메뉴판 가격, 용량 미공개. 음료가 아닌 메뉴는 비교·필터·점수에서 빼요.\n· 별점은 예시 데이터예요.\n· 지도: ${MAPTXT}\n· 등록된 브랜드·카페와 제휴 관계가 없어요. 브랜드 로고·메뉴 사진은 쓰지 않아요.`],
 };
 function InfoScreen() {
-  const items = [['terms', '서비스 이용약관 (문안 확정 전)'], ['lbs', '위치기반서비스 이용약관 (문안 확정 전)'], ['privacy', '개인정보처리방침 (문안 확정 전)'], ['policy', '별점 운영정책'], ['criteria', '추천 기준 설명 (점수 기반 추천)'], ['sources', '데이터 출처·기준일 · 제휴 없음 · 광고 안내'], ['withdraw', '개인위치정보 동의 관리·철회'], ['oss', '오픈소스 라이선스 (글꼴·아이콘)']];
+  const items = [['terms', '서비스 이용약관 (문안 확정 전)'], ['lbs', '위치기반서비스 이용약관 (문안 확정 전)'], ['privacy', '개인정보처리방침 (문안 확정 전)'], ['policy', '별점 운영정책'], ['criteria', '추천 기준 설명 (점수 기반 추천)'], ['sources', '데이터 출처·기준일 · 제휴 없음 · 광고 없음'], ['withdraw', '개인위치정보 동의 관리·철회'], ['oss', '오픈소스 라이선스 (글꼴·아이콘)']];
   let b = items.map(([k, t]) => listRow(t, () => go('doc/' + k))).join('') + listRow(Promo185.SECTION, () => go('promos')) + listRow('브랜드·업주 정보 수정·삭제·노출 중단 요청', () => go('report/-1/d'));
   b += `<div style="height:12px"></div><p>매장 DB: 상가정보 기준일 2026-06-30 + 인허가(data.go.kr 15006730) 기준일 2026-10-14 · ${EN ? EN.db.size.toLocaleString('ko-KR') + '곳 기기 저장됨' : '불러오는 중'}</p><p>위치 동의: ${cstate(S.consent)}</p>
     <p>내 제출 기록: ${S.outbox.length}건 (서버 미연결 베타: 이 기기에만 보관)</p><p>권한: 위치(선택)만 사용 · 광고 ID·분석 도구 없음 · 외부 서버 요청 없음(앱 파일·전국 DB를 처음 한 번 받기만 함)</p><p>개인정보 문의: (운영자 이메일 확정 전)</p>`;
-  return topBar('정보', { sub: `AI Coffee Web Beta ${VERSION}` }) + `<div class="scroll" data-keep="info">${b}</div>` + ad();
+  return topBar('정보', { sub: `AI Coffee Web Beta ${VERSION}` }) + `<div class="scroll" data-keep="info">${b}</div>`;
 }
 let OFL = null;
 const termsLinks = () => !Data182.STATUS.length ? '' : h3('원두·맛 정보 (브랜드 공식 홈페이지 기준)') + sub('원문은 싣지 않고 일치한 태그만 써요.') + Data182.STATUS.map(([b, c]) => { const t = Data182.TERMS.find(x => x.brand === b);
@@ -574,7 +586,7 @@ function C01() {
 · 위치 권한은 언제든 iPhone 설정에서 끌 수 있어요.</p>`)}
     ${h3('약관·정책 보기')}${listRow('서비스 이용약관 (문안 확정 전)', () => go('doc/terms'))}${listRow('개인정보처리방침 (문안 확정 전)', () => go('doc/privacy'))}${listRow('별점 운영정책', () => go('doc/policy'))}
     <p class="sub pre">수집: 익명 기기 ID, 별점, 제보·신고 내용, 제출 날짜 · 수집 안 함: 이름·전화번호·이메일·광고 ID·위치 좌표
-AI Coffee는 등록된 브랜드·카페와 제휴 관계가 없어요. 광고는 비개인화 배너만 써요(광고 ID 미사용).</p>
+AI Coffee는 등록된 브랜드·카페와 제휴 관계가 없어요. 광고와 광고 SDK가 없어요.</p>
     <div style="height:12px"></div>${btn('다음', () => go('c02'), 'pri')}</div>`;
 }
 const pair = (a, b, fa, fb) => `<div class="pair">${btn(a, fa)}${btn(b, fb)}</div>`;
@@ -591,7 +603,7 @@ function C03() {
 철회: 정보 탭 › 개인위치정보 동의 관리에서 언제든 철회할 수 있어요. iPhone 설정에서 위치 권한도 끌 수 있어요.
 
 거부해도 시·구를 직접 골라 그 지역 중심 기준으로 매장을 찾을 수 있고(고른 지역은 저장하지 않아요), 메뉴 비교·즐겨찾기도 이용할 수 있어요.</p>${sub('위치기반서비스 이용약관 전문 (문안 확정 전) · 감독기관: 방송미디어통신위원회', 'padding-top:8px')}
-    ${pair('동의하지 않음', '동의', () => { A.setLocConsent('deny'); go('p02a'); }, () => { A.setLocConsent('agree'); go('near'); })}${sub("동의하면 Safari가 위치 권한을 물어요. '허용'을 눌러 주세요.", 'padding-top:8px')}</div>`;
+    ${pair('동의하지 않음', '동의', () => { A.setLocConsent('deny'); resumeAfterConsent(false); go('p02a'); }, () => { A.setLocConsent('agree'); go('near'); resumeAfterConsent(true); })}${sub("동의하면 Safari가 위치 권한을 물어요. '허용'을 눌러 주세요.", 'padding-top:8px')}</div>`;
 }
 const P02a = () => topBar('위치 기능이 꺼져 있어요') + `<div class="scroll">${locationHelp()}</div>`;
 
@@ -655,6 +667,28 @@ function DoneScreen(k) {
 }
 
 // ---------- 바텀시트 ----------
+// ---------- 1.8.7 r4 시작 화면(index.html #splash)·안내창 ----------
+const BOOT = { t0: performance.now(), timedOut: false, splashGone: false, promoDecided: false };
+function hideSplash() { if (BOOT.splashGone) return; BOOT.splashGone = true; document.getElementById('splash')?.remove(); }
+function maybePromoNotice() {
+  if (BOOT.promoDecided || !BOOT.splashGone) return;
+  if (!PromoData.ready && !PromoData.failed) { if (BOOT.timedOut) BOOT.promoDecided = true; return; } // 로딩 중: 5초 초과 실행이면 포기
+  BOOT.promoDecided = true;
+  let hideDate = null; try { hideDate = localStorage.getItem(PROMO_HIDE_KEY); } catch { }
+  const d = PromoNotice.decide({ ready: PromoData.ready, failed: PromoData.failed, items: PromoData.items, now: new Date(), hideDate,
+    otherOpen: !!UI.sheet, moved: UI.route.split('/')[0] !== 'near', timedOut: BOOT.timedOut });
+  if (d) openSheet({ type: 'promoNotice', d });
+}
+function promoNoticeSheet(sh) {
+  const d = sh.d; const ck = PromoData.checked;
+  const hideToday = () => { try { localStorage.setItem(PROMO_HIDE_KEY, Promotions.kstToday(new Date())); } catch { } closeSheet(); };
+  return { body: `<div class="sc promonotice"><h2 class="h2 pn-title" tabindex="-1">${esc(PromoNotice.TITLE)}</h2>
+    <p class="pn-sum">진행 중인 공식 프로모션 ${d.n}개 · <span class="nowrap">브랜드 ${d.m}곳</span></p>
+    <p class="pn-src">${esc(PromoNotice.SRC)}</p>${ck ? `<p class="pn-src">${esc(PromoNotice.checkedLine(ck))}</p>` : ''}
+    <div class="pn-btns"><button class="pn-btn pri" data-a="${act(() => { UI.sheet = null; go('promos'); })}">${PromoNotice.OPEN}</button>
+    <button class="pn-btn txt" data-a="${act(hideToday)}">${PromoNotice.HIDE_TODAY}</button>
+    <button class="pn-btn sec" data-a="${act(closeSheet)}">${PromoNotice.CLOSE}</button></div></div>` };
+}
 function openSheet(s) { UI.sheet = s; UI.sheetScroll = 0; render(); }
 function closeSheet() { UI.sheet = null; render(); }
 const sheetBtns = (more) => `<div class="sheetbtns">${more ? `<button class="txtbtn c" data-a="${act(more[1])}">${esc(more[0])}</button>` : ''}<button class="txtbtn" data-a="${act(closeSheet)}">닫기</button></div>`;
@@ -675,7 +709,7 @@ function filterSheet(sh) {
     ${h3('브랜드 (여러 개, 가나다순)')}<div class="flow tall">${Brands.SORTED.map(([code, b]) => chip(b, d.brands.includes(code), () => { const nb = d.brands.includes(code) ? d.brands.filter(x => x !== code) : [...d.brands, code]; set({ brands: nb, type: nb.length ? 'FR' : d.type }); }, { disabled: d.type === 'IND' })).join('')}</div>
     ${sub(d.type === 'IND' ? '개인 카페를 고르면 브랜드는 선택할 수 없어요.' : '브랜드를 고르면 카페 유형이 프랜차이즈로 바뀌어요.')}
     ${h3('이용자 별점 최소값 (보정 평점)')}<div class="flow tall">${chip('전체', d.rmin == null, () => set({ rmin: null }))}${[3.5, 4.0, 4.5].map(r => chip(`${f1(r)} 이상`, d.rmin === r, () => set({ rmin: r }))).join('')}</div>
-    ${sub('거리 필터는 없어요(반경 1km 고정). 광고는 필터·순서에 영향을 주지 않아요.', 'padding-bottom:8px')}</div>
+    ${sub('거리 필터는 없어요(반경 1km 고정).', 'padding-bottom:8px')}</div>
     <div class="foot"><div style="flex:1">${btn('초기화', () => { sh.d = defaultFilter(); sh.pText = ''; sh.vminT = ''; sh.vmaxT = ''; render(); })}</div><div style="flex:2">${btn(cnt == null ? '적용' : `${cnt}곳 보기`, () => { UI.sheet = null; A.setFilter({ ...sh.d, brands: [...sh.d.brands] }); }, 'pri', false, 'id="applyBtn"')}</div></div>`;
   return { body, full: true };
 }
@@ -706,6 +740,8 @@ function sheetContent() {
   }
   if (sh.type === 'link') { const r = sh.row; // Beta 1.8.6 P9 이동 확인(§7-3·§8-2): 버튼 전체 폭 세로, [이동하기] 맨 아래
     return { body: `<div class="sc p9sheet"><p class="p9ask">${esc(P9.ask(r.brand))}</p><p class="p9url">${esc(r.url)}</p><p class="sub">${P9.SHEET_NOTE}</p>${sh.failed ? `<p class="p9openfail">${P9.OPEN_FAIL}</p><button class="btn sec p9copy" data-a="${act(async () => { if (await copyText(r.url)) toast(P9.COPIED); })}">${P9.COPY}</button>` : ''}<div class="p9btns"><button class="btn p9cancel" data-a="${act(closeSheet)}">${P9.CANCEL}</button><button class="btn pri p9go" data-a="${act(() => launchLink(sh))}">${P9.GO}</button></div></div>` }; }
+  if (sh.type === 'permHelp') return { body: `<div class="sc permhelp">${h2('위치 권한 켜는 방법')}${PERM_HELP_LINES.map(l => `<p class="t15" style="padding:4px 0">· ${esc(l)}</p>`).join('')}<p class="t15 b" style="padding-top:8px">${esc(PERM_HELP_NEXT)}</p>${sheetBtns()}</div>` }; // 닫기만, 다른 동작 없음
+  if (sh.type === 'promoNotice') return promoNoticeSheet(sh);
   if (sh.type === 'a2hs') return { body: `<div class="sc">${h2('홈 화면에 추가')}<p class="t15">Safari 공유 → 홈 화면에 추가</p>${sub('홈 화면에서 열면 주소창 없이 앱처럼 쓸 수 있어요. 이 안내는 한 번만 보여 드려요.')}${sheetBtns()}</div>` };
   return null;
 }
@@ -780,7 +816,6 @@ function screenHtml() {
 function foldCheck() { root.querySelectorAll('.promocard:not(.open)').forEach(c => { const b = c.querySelector('.foldbtn'); if (!b) return; const over = el => el && el.scrollHeight > el.clientHeight + 1; b.hidden = !(over(c.querySelector('.foldtxt')) || over(c.querySelector('.foldscope'))); }); }
 export function render() {
   if (!S.loaded) return;
-  if (needsAutoFix()) queueMicrotask(autoFix);
   const keep = {}; if (!UI.scrollReset) root.querySelectorAll('[data-keep]').forEach(el => { keep[el.dataset.keep] = el.scrollTop; });
   const sheetSc = document.querySelector('.sheet .sc'); const sheetTop = sheetSc ? sheetSc.scrollTop : 0;
   const ae = document.activeElement; const focusIn = ae && ae.dataset && ae.dataset.in ? ae.dataset.in : null;
@@ -798,6 +833,8 @@ export function render() {
   UI.scrollReset = false;
   foldCheck();
   if (tabs && UI.maybeA2hs) { UI.maybeA2hs = false; maybeA2hs(); }
+  if (!BOOT.splashGone && (S.ready || S.dbError)) hideSplash(); // 데이터 준비 끝 → 바로 메인(인위 지연 없음)
+  if (!BOOT.promoDecided && BOOT.splashGone && S.loaded) queueMicrotask(maybePromoNotice);
 }
 root.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el || !root.contains(el)) return;
@@ -835,6 +872,7 @@ export async function start() {
   UI.route = S.consent.age == null ? 'c01' : (h && !h.startsWith('c0') ? h : 'near');
   history.replaceState({ depth: 0 }, '', '#/' + UI.route);
   UI.maybeA2hs = true;
+  setTimeout(() => { if (!BOOT.splashGone) { BOOT.timedOut = true; hideSplash(); render(); } }, PromoNotice.CAP_MS); // 5초 상한: 메인 로딩 상태로, 안내창 없음
   render();
   try { EN = await loadDb(); S.ready = true; } catch (e) { S.dbError = '매장 DB를 읽지 못했어요 (' + (e && e.message ? e.message : e) + ')'; }
   render();
