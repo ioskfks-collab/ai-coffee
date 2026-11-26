@@ -197,12 +197,17 @@ export const Geo = {
 export const CafeType = { ALL: 'ALL', FR: 'FR', IND: 'IND' };
 export const Reasons = ['NO_VOL', 'NO_PRICE', 'NO_TASTE'];
 export const LBL = { NO_VOL: '용량 미공개', NO_PRICE: '가격 정보 없음', NO_TASTE: '별점 부족' };
-export const defaultFilter = () => ({ type: 'ALL', menu: 'am_h', pmax: null, vmin: null, vmax: null, brands: [], rmin: null });
+// Beta 1.8.9: xbrands(제외 브랜드)·sz('S' 가장 작은 사이즈 | 'L' 가장 큰 사이즈)·rmax(검색 반경 m, 1km 이하) — 자연어 검색(nlquery.js)과 칩에서 씀
+export const defaultFilter = () => ({ type: 'ALL', menu: 'am_h', pmax: null, vmin: null, vmax: null, brands: [], rmin: null, xbrands: [], sz: null, rmax: null });
 export const F = {
   priceOn: f => f.pmax != null,
   volOn: f => f.vmin != null || f.vmax != null,
-  active: f => f.type !== 'ALL' || f.pmax != null || F.volOn(f) || f.brands.length > 0 || f.rmin != null,
-  activeCount: f => [f.type !== 'ALL', f.pmax != null, F.volOn(f), f.brands.length > 0, f.rmin != null, f.menu !== 'am_h'].filter(Boolean).length,
+  active: f => f.type !== 'ALL' || f.pmax != null || F.volOn(f) || f.brands.length > 0 || f.rmin != null || F.extraOn(f),
+  activeCount: f => [f.type !== 'ALL', f.pmax != null, F.volOn(f), f.brands.length > 0, f.rmin != null, f.menu !== 'am_h', (f.xbrands || []).length > 0, f.sz != null, f.rmax != null].filter(Boolean).length,
+  extraOn: f => (f.xbrands || []).length > 0 || f.sz != null || f.rmax != null,
+  /** Beta 1.8.9 검색 반경: rmax(100~1000m)가 있으면 그 값, 없으면 1km */
+  radius: f => f.rmax != null ? Math.max(100, Math.min(Radius.SEARCH_M, f.rmax)) : Radius.SEARCH_M,
+  radiusText: f => { const r = F.radius(f); return r >= 1000 ? `${r / 1000}km` : `${r}m`; },
   volOk: (f, ml) => ml != null && (f.vmin == null || ml >= f.vmin) && (f.vmax == null || ml <= f.vmax),
   eq: (a, b) => JSON.stringify(a) === JSON.stringify(b),
 };
@@ -241,7 +246,10 @@ export class Engine {
     if (f.type === 'FR' && !db.isFr(i)) return null;
     if (f.type === 'IND' && db.isFr(i)) return null;
     if (f.brands.length && !f.brands.includes(db.brand[i])) return null;
-    const ss = this.storeSizes(i, f.menu); const priced = ss ? ss.list : [];
+    if (f.xbrands && f.xbrands.length && f.xbrands.includes(db.brand[i])) return null;
+    const ss = this.storeSizes(i, f.menu); let priced = ss ? ss.list : [];
+    // Beta 1.8.9 사이즈: S = 그 매장의 가장 싼(작은) 사이즈, L = 가장 비싼(큰) 사이즈 하나로 비교(사이즈 이름은 브랜드마다 달라 가격 순서로 판단)
+    if (f.sz && priced.length > 1) priced = [f.sz === 'S' ? minBy(priced, s => s.p) : priced.reduce((m, x) => (x.p > m.p ? x : m), priced[0])];
     let size = null, reason = null; const pOn = F.priceOn(f), vOn = F.volOn(f);
     if (!priced.length) {
       if (ss && ss.notSold) return null;
@@ -271,7 +279,7 @@ export class Engine {
   }
   scoreOf(e, d, pop, w) { return Engine.score(d, e.size ? e.size.p : null, pop, e.t.enough ? e.t.adj : null, w); }
   computeNear(loc, f, preset, inc) {
-    const inR = Geo.query(this.db, loc, Radius.SEARCH_M);
+    const inR = Geo.query(this.db, loc, F.radius(f));
     const pop = this.population(f); const w = Presets[preset].w || Presets.BAL.w;
     const groups = { NO_VOL: [], NO_PRICE: [], NO_TASTE: [] }; const items = [];
     for (const h of inR) {
@@ -313,7 +321,7 @@ export class Engine {
   }
   compareStores(loc, f, inc) {
     let noPriceInd = 0; const list = [];
-    for (const h of Geo.query(this.db, loc, Radius.SEARCH_M)) {
+    for (const h of Geo.query(this.db, loc, F.radius(f))) {
       const e = this.evalStore(h.i, f); if (!e) continue;
       if (e.size == null) { if (!this.db.isFr(h.i)) noPriceInd++; continue; }
       if (e.reason != null && !inc[e.reason]) continue;
@@ -331,13 +339,16 @@ export class Engine {
     return Geo.query(this.db, loc, radius).filter(h => { const e = this.evalStore(h.i, f); return e != null && (e.reason == null || inc[e.reason]); }).length;
   }
   relaxOptions(loc, f, inc, useFallback) {
-    const pool = Geo.query(this.db, loc, useFallback ? Radius.FALLBACK_M : Radius.SEARCH_M);
+    const pool = Geo.query(this.db, loc, useFallback ? Radius.FALLBACK_M : F.radius(f));
     const cnt = (ff, ii = inc) => pool.filter(h => { const e = this.evalStore(h.i, ff); return e != null && (e.reason == null || ii[e.reason]); }).length;
     const o = [];
     if (F.priceOn(f)) o.push({ label: '가격 조건을 빼면', arg: 'price', n: cnt({ ...f, pmax: null }) });
     if (F.volOn(f)) { o.push({ label: '용량 조건을 빼면', arg: 'vol', n: cnt({ ...f, vmin: null, vmax: null }) }); if (!inc.NO_VOL) o.push({ label: '용량 미공개 포함하면', arg: 'incVol', n: cnt(f, { ...inc, NO_VOL: true }) }); }
     if (f.rmin != null) { o.push({ label: '별점 조건을 빼면', arg: 'rating', n: cnt({ ...f, rmin: null }) }); if (!inc.NO_TASTE) o.push({ label: '별점 부족 포함하면', arg: 'incTaste', n: cnt(f, { ...inc, NO_TASTE: true }) }); }
     if (f.brands.length) o.push({ label: '브랜드 조건을 빼면', arg: 'brand', n: cnt({ ...f, brands: [] }) });
+    if ((f.xbrands || []).length) o.push({ label: '제외 브랜드를 빼면', arg: 'xbrand', n: cnt({ ...f, xbrands: [] }) });
+    if (f.sz != null) o.push({ label: '사이즈 조건을 빼면', arg: 'size', n: cnt({ ...f, sz: null }) });
+    if (f.rmax != null && !useFallback) { const ff = { ...f, rmax: null }; o.push({ label: '거리 조건을 빼면(1km)', arg: 'dist', n: Geo.query(this.db, loc, Radius.SEARCH_M).filter(h => { const e = this.evalStore(h.i, ff); return e != null && (e.reason == null || inc[e.reason]); }).length }); }
     if (f.type !== 'ALL') o.push({ label: '카페 유형을 전체로 바꾸면', arg: 'type', n: cnt({ ...f, type: 'ALL', brands: [] }) });
     if (f.menu !== 'am_h') o.push({ label: '메뉴를 아메리카노 Hot으로 바꾸면', arg: 'menu', n: cnt({ ...f, menu: 'am_h' }) });
     return o.filter(x => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3);

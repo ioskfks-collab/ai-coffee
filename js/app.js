@@ -8,7 +8,15 @@ import { Promotions, PromoData, Promo185, recurLabel, PromoNotice, PROMO_HIDE_KE
 import { BrandLinks, LinkData, P9 } from './brandlinks.js';
 import { PhotoLinks, IndPriceTable, indLabel, indSourceLine } from './beta183.js';
 
-export const VERSION = '1.8.7';
+import { parseQuery, toFilter, hasCondition } from './nlquery.js';
+export const VERSION = '1.8.9';
+export const APP_TITLE = 'AI CAFE BETA ' + VERSION;
+export const CHANGELOG_189 = ['앱 아이콘을 새 AI CAFE 로고로 바꿨어요.',
+  '자연어 검색: "근처 3천원 이하 아이스 아메리카노 가성비"처럼 쓰면 메뉴·온도·사이즈·가격·거리·정렬·브랜드 조건으로 바꿔 줘요. 기기 안에서 도는 규칙 기반 분석이에요(AI 모델·외부 서버를 쓰지 않아요). 검색어는 저장하거나 보내지 않아요.',
+  '데이터가 없는 조건(분위기·시설·영업시간·지원하지 않는 메뉴 등)은 "데이터 없음 — 반영 안 함"으로 보여 주고 결과에는 반영하지 않아요.',
+  '앱 안 약도: 결과 매장을 내 위치 기준 약도에 표시해요. 매장 좌표만 그리고 도로·건물은 없어요(외부 지도 서버 요청 없음). 길찾기는 지금처럼 지도 앱으로 열어요.',
+  '가격마다 "출처 · 확인 날짜"를 표시해요. 확인 날짜가 없는 예시 가격은 "확인일 없음"으로 적고, 60일이 지난 가격에는 "오래된 가격" 배지를 붙여요.',
+  '필터에 거리(반경 100m~1km)·사이즈(가장 작은/큰 사이즈)·제외 브랜드 조건을 더했어요.'];
 const DB_URL = 'data/aicoffee-db-r4.txt.gz', DB_CACHE = 'aic-db-2026-10-14-r4', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
@@ -16,7 +24,7 @@ const S = { loaded: false, ready: false, dbError: null, consent: {}, loc: null, 
   filter: defaultFilter(), preset: 'BAL', inc: defaultInc(), favs: [], myRatings: {}, outbox: [], mapApp: null,
   area: null, taste: TastePrefs.empty(), homeCat: 'near' }; // area: Beta 1.7 수동 시·구(메모리 전용, persist 안 함)
 let EN = null, did = '';
-const UI = { route: 'near', sheet: null, toast: null, promoOpen: new Set() };
+const UI = { route: 'near', sheet: null, toast: null, promoOpen: new Set(), nl: null, nlText: '', view: 'list', map: { z: 1, cx: 0, cy: 0, sel: null } }; // 1.8.9: nl·지도 상태는 메모리 전용(저장·전송 안 함)
 /** 목록·거리 기준점: GPS가 있으면 GPS, 없으면 고른 시·구 중심점 */
 const ref = () => S.loc || (S.area ? { lat: S.area.lat, lng: S.area.lng, acc: null } : null);
 const manual = () => !S.loc && !!S.area;
@@ -59,7 +67,7 @@ function restore() {
   catch { dbIdVer = +o.dbIdVer || 0; /* 변환 실패: 원래 값 유지, 완료 표시 안 함 → 다음 실행에 다시 시도 */ }
   did = o.did || Array.from(crypto.getRandomValues(new Uint8Array(8)), b => b.toString(16).padStart(2, '0')).join('');
   S.consent = o.consent || {};
-  const f = o.filter; if (f && typeof f === 'object') S.filter = { ...defaultFilter(), ...f, brands: Array.isArray(f.brands) ? f.brands : [] };
+  const f = o.filter; if (f && typeof f === 'object') S.filter = { ...defaultFilter(), ...f, brands: Array.isArray(f.brands) ? f.brands : [], xbrands: Array.isArray(f.xbrands) ? f.xbrands : [], sz: f.sz === 'S' || f.sz === 'L' ? f.sz : null, rmax: Number.isFinite(f.rmax) ? f.rmax : null };
   if (Presets[o.preset]) S.preset = o.preset;
   S.favs = Array.isArray(o.favs) ? o.favs.filter(Number.isInteger) : []; S.myRatings = o.myRatings && typeof o.myRatings === 'object' ? o.myRatings : {}; S.outbox = Array.isArray(o.outbox) ? o.outbox : []; S.mapApp = o.mapApp || null;
   try { S.taste = TastePrefs.load(); } catch { S.taste = TastePrefs.empty(); }
@@ -152,12 +160,22 @@ const A = {
   setTaste(tags) { S.taste = TastePrefs.clean({ tags, updated: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) }); try { TastePrefs.save(S.taste); } catch { } render(); },
   setHomeCat(c) { S.homeCat = c; UI.scrollReset = true; render(); },
   setMapApp(id) { S.mapApp = id; persist(); },
+  /** Beta 1.8.9 자연어 검색: 기기 안 규칙 기반 분석 → 기존 필터·정렬로 적용(이전 조건은 지우고). 이해한 조건이 없으면 필터를 바꾸지 않음 */
+  nlSearch(q) {
+    q = String(q || '').slice(0, 100); UI.nlText = q;
+    if (!q.trim()) { UI.nl = null; render(); return; }
+    const p = parseQuery(q); UI.nl = { q, p };
+    if (hasCondition(p)) { const r = toFilter(p, S.preset, defaultFilter()); S.filter = r.filter; S.preset = r.preset; S.inc = defaultInc(); persist(); }
+    S.homeCat = 'near'; UI.map.sel = null; UI.scrollReset = true; try { document.activeElement && document.activeElement.blur(); } catch { } render();
+  },
+  nlClear() { UI.nl = null; UI.nlText = ''; mut(() => { S.filter = defaultFilter(); S.inc = defaultInc(); }); },
+  setView(v) { UI.view = v; UI.map = { z: 1, cx: 0, cy: 0, sel: null }; UI.scrollReset = true; render(); },
   relax(arg) {
     const f = S.filter;
     if (arg === 'incVol') { S.inc = { ...S.inc, NO_VOL: true }; render(); return; }
     if (arg === 'incTaste') { S.inc = { ...S.inc, NO_TASTE: true }; render(); return; }
     A.setFilter(arg === 'price' ? { ...f, pmax: null } : arg === 'vol' ? { ...f, vmin: null, vmax: null } : arg === 'rating' ? { ...f, rmin: null }
-      : arg === 'brand' ? { ...f, brands: [] } : arg === 'type' ? { ...f, type: 'ALL', brands: [] } : { ...f, menu: 'am_h' });
+      : arg === 'brand' ? { ...f, brands: [] } : arg === 'type' ? { ...f, type: 'ALL', brands: [] } : arg === 'xbrand' ? { ...f, xbrands: [] } : arg === 'size' ? { ...f, sz: null } : arg === 'dist' ? { ...f, rmax: null } : { ...f, menu: 'am_h' });
   },
   toggleFav(i) { mut(() => { S.favs = S.favs.includes(i) ? S.favs.filter(x => x !== i) : [...S.favs, i]; }); },
   canSubmit(i) {
@@ -214,6 +232,10 @@ function infoLine(summary, lines, title = '가격·별점 안내', more = null) 
 }
 const ratingInline = t => t.enough ? `<span class="rating" aria-label="이용자 별점 ${f1(t.r)}점, ${t.v}개"><span class="star">${I.star}</span><b>${f1(t.r)}</b><span class="sub">&nbsp;(${t.v})</span></span>` : `<span class="sub">별점 부족 (${t.v}개)</span>`;
 const noPriceText = e => { const ss = e.ss; return ss?.pending ? '가격 확인 중' : ss?.missing ? '가격 미입력' : ss?.notSold ? '판매 메뉴 아님' : PRICE_UNCONFIRMED; };
+// Beta 1.8.9(청구항 8): 가격 줄마다 '출처 · 확인 YYYY-MM-DD'. 확인 날짜가 없으면 '확인일 없음'(지어내지 않음)
+export const srcShort = s => { const t = s.src || ''; return t.startsWith('착한가격업소') ? '착한가격업소 공공데이터' : t.startsWith('이용자') ? '이용자 제보' : t === EXAMPLE || t.includes('예시') ? EXAMPLE : t.startsWith('http') ? '공식 출처' : t; };
+export const srcDateText = s => `출처 ${srcShort(s)} · ${s.d ? '확인 ' + s.d : '확인일 없음'}`;
+const srcLineHtml = s => `<p class="sub srcline">${esc(srcDateText(s))}${s.d && Engine.isOld(s.d) ? ' ' + badge('오래된 가격', 'dark') : ''}</p>`;
 const cardVolume = e => { const s = e.size; if (!s) return null; const a = [s.ml != null ? MenuTable.mlText(s) : null, s.src.startsWith('이용자') ? '제보 가격' : null].filter(Boolean); return a.length ? a.join(' · ') : null; };
 
 /** 카드 3번째 줄(Beta 1.8): [별점] · [1km 밖] · 320m · 도보 5분(추정). 줄바꿈은 항목 사이에서만('·'는 앞 줄에 남고 '도보 n분(추정)'은 통째로 다음 줄) */
@@ -231,7 +253,7 @@ function storeCard(e, n, outside, boost = false, valExcluded = false) {
   return `<div class="card" role="button" tabindex="0" data-a="${act(() => go('store/' + e.i))}">
     <div class="body"><div class="l1">${n > 0 ? `<span class="rank">${n}</span>` : ''}<span class="name">${esc(db.name[e.i])}</span></div>
     <div class="l2">${s ? `<span class="price">${won(s.p)}</span>${cardVolume(e) ? `<span class="sub">${esc(cardVolume(e))}</span>` : ''}` : `<span class="noprice">${noPriceText(e)}</span>`}</div>
-    ${valExcluded && !s ? `<p class="sub valexcl">${VAL_EXCLUDED}</p>` : ''}
+    ${s ? srcLineHtml(s) : ''}${valExcluded && !s ? `<p class="sub valexcl">${VAL_EXCLUDED}</p>` : ''}
     ${cardMeta(e, showR, outside, boost)}</div>
     <button class="diricon" aria-label="길찾기" data-a="${act(() => openSheet({ type: 'map', i: e.i }))}"><span>${I.nav}</span></button></div>`;
 }
@@ -244,6 +266,7 @@ function sortTabs() {
 }
 function chipBar() {
   const f = S.filter; const n = F.activeCount(f); const out = [];
+  out.push(chip(UI.view === 'map' ? '목록' : '지도', false, () => A.setView(UI.view === 'map' ? 'list' : 'map'), { lead: UI.view === 'map' ? I.listOff : I.placeOff }));
   out.push(chip('필터' + (n > 0 ? ' ' + n : ''), n > 0, () => openSheet({ type: 'filter', d: structuredClone(f) }), { lead: I.sliders }));
   out.push(chip(MenuTable.menuName(f.menu), false, () => openSheet({ type: 'menu' }), { trail: I.drop }));
   if (n > 0) out.push(chip('초기화', false, A.resetFilter, { lead: I.refresh }));
@@ -252,7 +275,40 @@ function chipBar() {
   if (F.volOn(f)) out.push(chip([f.vmin != null ? `${f.vmin}mL 이상` : null, f.vmax != null ? `${f.vmax}mL 이하` : null].filter(Boolean).join(' ~ ') + ' ✕', true, () => A.setFilter({ ...f, vmin: null, vmax: null })));
   if (f.brands.length) out.push(chip((f.brands.length === 1 ? Brands.ALL[f.brands[0] - 1] : `브랜드 ${f.brands.length}개`) + ' ✕', true, () => A.setFilter({ ...f, brands: [] })));
   if (f.rmin != null) out.push(chip(`★${f1(f.rmin)} 이상 ✕`, true, () => A.setFilter({ ...f, rmin: null })));
+  if (f.rmax != null) out.push(chip(`반경 ${F.radiusText(f)} ✕`, true, () => A.setFilter({ ...f, rmax: null })));
+  if (f.sz != null) out.push(chip(`${SZ_LABEL[f.sz]} ✕`, true, () => A.setFilter({ ...f, sz: null })));
+  if ((f.xbrands || []).length) out.push(chip(`${f.xbrands.map(c => Brands.ALL[c - 1]).join('·')} 제외 ✕`, true, () => A.setFilter({ ...f, xbrands: [] })));
   return `<div class="chips">${out.join('')}</div>`;
+}
+export const SZ_LABEL = { S: '작은 사이즈', L: '큰 사이즈' };
+// ---------- Beta 1.8.9 자연어 검색(청구항 2·3: 규칙 기반 조건 분석) ----------
+export const NL_PLACEHOLDER = '예: 근처 3천원 이하 아이스 아메리카노 가성비';
+export const NL_EXAMPLES = ['근처 3천원 이하 아이스 아메리카노 가성비 좋은 곳', '조용한 카페 500m', '라떼 싼 곳', '스타벅스 말고 큰 사이즈 라떼'];
+export const NL_HEAD = '이렇게 이해했어요', NL_RULE = '규칙 기반 분석 · 기기 안에서만 처리', NL_NODATA = '데이터 없음 — 반영 안 함';
+const nlBox = () => `<form class="nlsearch" role="search" data-nl="1"><input type="search" data-in="nl" name="q" enterkeyhint="search" autocomplete="off" maxlength="100" aria-label="자연어로 카페 찾기" placeholder="${esc(NL_PLACEHOLDER)}" value="${esc(UI.nlText)}"><button type="submit" class="nlgo" aria-label="검색">검색</button></form>`;
+const UNSUP_TEXT = u => u.kind === '최소 가격' ? `${u.term} · 최소 가격 조건 미지원 — 반영 안 함` : u.kind === '장소' ? `${u.term} · 지역 검색 미지원 — 반영 안 함` : u.kind === '메뉴' ? `${u.term} · 메뉴 ${NL_NODATA}` : `${u.term} · ${NL_NODATA}`;
+/** 분석 결과 칩: 지금 필터에 실제로 적용돼 있는 조건만(✕로 빼기), 데이터 없는 조건·모르는 말은 회색 칩(반영 안 함) */
+function nlPanel(compact = false) {
+  const nl = UI.nl; if (!nl) return '';
+  const p = nl.p, f = S.filter; const on = []; const L = ref();
+  if (p.menu != null || p.temp != null) { if (f.menu === toFilter(p, S.preset, defaultFilter()).filter.menu) on.push(chip(`${MenuTable.menuName(f.menu)}${p.temp == null && p.menu !== 'cb' ? ' (온도 미지정 → Hot)' : ''}${p.menu == null ? ' (메뉴 미지정 → 아메리카노)' : ''} ✕`, true, () => A.setFilter({ ...f, menu: 'am_h' }))); }
+  if (p.pmax != null && f.pmax === p.pmax) on.push(chip(`${won(f.pmax)} 이하 ✕`, true, () => A.setFilter({ ...f, pmax: null })));
+  if (p.rmax != null && f.rmax === p.rmax) on.push(chip(`반경 ${F.radiusText(f)} ✕`, true, () => A.setFilter({ ...f, rmax: null })));
+  if (p.size && f.sz === p.size) on.push(chip(`${SZ_LABEL[f.sz]}(${f.sz === 'S' ? '가장 싼' : '가장 비싼'} 사이즈 가격) ✕`, true, () => A.setFilter({ ...f, sz: null })));
+  if (p.brands.length && f.brands.length) on.push(chip(`${f.brands.map(c => Brands.ALL[c - 1]).join('·')} ✕`, true, () => A.setFilter({ ...f, brands: [], type: 'ALL' })));
+  else if (p.type && f.type === p.type) on.push(chip(`${f.type === 'FR' ? '프랜차이즈' : '개인 카페(추정)'} ✕`, true, () => A.setFilter({ ...f, type: 'ALL' })));
+  if (p.xbrands.length && (f.xbrands || []).length) on.push(chip(`${f.xbrands.map(c => Brands.ALL[c - 1]).join('·')} 제외 ✕`, true, () => A.setFilter({ ...f, xbrands: [] })));
+  if (p.rmin != null && f.rmin === p.rmin) on.push(chip(`★${f1(f.rmin)} 이상(예시 별점) ✕`, true, () => A.setFilter({ ...f, rmin: null })));
+  if (p.sort) on.push(chip(`정렬: ${Presets[S.preset].short.replace(/\(기본\)$/, '')}${p.sort === 'PRICE' ? ' (싼 곳 → 가격 80% 가성비)' : ''}`, true, () => A.setPreset('BAL')));
+  const off = p.unsupported.map(u => `<span class="chip nodata" role="note">${esc(UNSUP_TEXT(u))}</span>`).concat(p.unknown.map(t => `<span class="chip nodata" role="note">${esc(`'${t}' · 모르는 말 — 반영 안 함`)}</span>`));
+  if (compact) return `<section class="nlpanel compact" aria-label="${NL_HEAD}"><div class="chips">${chip('검색 지우기', false, A.nlClear)}${hasCondition(p) ? on.join('') : `<span class="chip nodata" role="note">이해한 조건 없음</span>`}${off.join('')}</div></section>`;
+  let h = `<section class="nlpanel" aria-label="${NL_HEAD}"><div class="rowc"><p class="b" style="flex:1">${NL_HEAD} <span class="sub" style="font-weight:400">· ${NL_RULE}</span></p><button class="txtbtn" data-a="${act(A.nlClear)}">검색 지우기</button></div>`;
+  if (!hasCondition(p)) h += `<p class="nlnone">검색어에서 앱이 쓸 수 있는 조건을 찾지 못했어요. 메뉴·가격·거리·정렬·브랜드로 써 보세요.</p><div class="chips wrap">${NL_EXAMPLES.map(x => chip(x, false, () => A.nlSearch(x))).join('')}</div>`;
+  else h += `<div class="chips wrap">${on.join('') || `<span class="sub">적용된 조건을 모두 뺐어요</span>`}</div>`;
+  if (off.length) h += `<div class="chips wrap">${off.join('')}</div>`;
+  if (p.notes.length) h += `<p class="sub">${esc(p.notes.join(' · '))}</p>`;
+  if (hasCondition(p) && !L) h += `<p class="sub">위치를 확인하면 이 조건으로 보여 드려요.</p>`;
+  return h + `</section>`;
 }
 const isBig = () => parseFloat(getComputedStyle(document.documentElement).fontSize) * 1 > 16 * 1.15 * (document.documentElement.classList.contains('ios') ? 17 / 16 : 1);
 
@@ -276,7 +332,7 @@ function exclNotes(r) {
 }
 function relaxBlock(o) {
   let h = o.length ? h3('조건 완화 제안') + o.map(x => `<div style="padding:3px 0">${btn(`${x.label} ${x.n}곳`, () => A.relax(x.arg))}</div>`).join('') : '';
-  return h + `<div style="padding:3px 0">${btn('필터 초기화', A.resetFilter)}</div>` + sub('조건을 자동으로 바꾸거나 반경을 넓히지 않아요(1km 고정).');
+  return h + `<div style="padding:3px 0">${btn('필터 초기화', A.resetFilter)}</div>` + sub('조건을 자동으로 바꾸거나 반경을 넓히지 않아요(반경은 고른 값 그대로 · 기본 1km).');
 }
 // Beta 1.7(QA-Web ②): 3km 대체 목록은 추천 점수 없이 거리순 → 가격 없는 묶음 안내도 거리순으로
 export const NOPRICE_FALLBACK_NOTE = '가격 정보 없는 곳은 거리순이에요';
@@ -288,7 +344,7 @@ function nearList(ns) {
   if ((L.acc || 0) > 50) h += box(`<p>위치 정확도가 낮아요 (약 ${Math.trunc(L.acc)}m) · 거리와 별점·제보 현장 확인(100m) 판정이 정확하지 않을 수 있어요.</p>`, 'warn');
   if (r.baseCount === 0) {
     h += `<div class="empty">${emptyCup()}`;
-    if (r.fallback.length) h += `<p class="b" style="font-size:var(--fs-17);line-height:1.41;margin-top:8px">1km 안에 카페가 없어요. 3km까지 찾아봤어요</p>${sub((F.active(f) ? '조건에 맞는 가장 가까운 매장' : '가장 가까운 매장') + ' · 3km 이내 · 거리순 · 추천 점수 없이 거리순으로만 보여 줘요. 반경은 자동으로 넓히지 않아요.', 'margin:4px 0')}`;
+    if (r.fallback.length) h += `<p class="b" style="font-size:var(--fs-17);line-height:1.41;margin-top:8px">${f.rmax == null ? '1km 안에 카페가 없어요. 3km까지 찾아봤어요' : F.radiusText(f) + ' 안에 카페가 없어요. 3km까지 찾아봤어요'}</p>${sub((F.active(f) ? '조건에 맞는 가장 가까운 매장' : '가장 가까운 매장') + ' · 3km 이내 · 거리순 · 추천 점수 없이 거리순으로만 보여 줘요. 반경은 자동으로 넓히지 않아요.', 'margin:4px 0')}`;
     else if (F.active(f)) h += `<div style="width:100%;text-align:left"><p class="b" style="padding:8px 0">3km 안에도 조건에 맞는 매장이 없어요.</p>${relaxBlock(ns.relax)}</div>`;
     else h += `<p class="b" style="font-size:var(--fs-17);padding:8px 0">3km 안에도 카페가 없어요</p>`;
     h += '</div>';
@@ -296,7 +352,7 @@ function nearList(ns) {
     h += fbP.map(e => storeCard(e, 0, true)).join('');
     if (fbN.length) h += noPriceHeader(fbN.length, f.menu, true) + fbN.map(e => storeCard(e, 0, true)).join('');
   } else if (empty) {
-    h += `<div class="empty">${emptyCup()}<p class="b" style="font-size:var(--fs-17);margin-top:8px">조건에 맞는 매장이 1km 안에 없어요</p>${sub(`필터 없이 보면 1km 안 ${r.baseCount}곳이 있어요.`)}<div style="width:100%;text-align:left">${exclNotes(r)}${relaxBlock(ns.relax)}</div></div>`;
+    h += `<div class="empty">${emptyCup()}<p class="b" style="font-size:var(--fs-17);margin-top:8px">조건에 맞는 매장이 ${F.radiusText(f)} 안에 없어요</p>${sub(`필터 없이 보면 ${F.radiusText(f)} 안 ${r.baseCount}곳이 있어요.`)}<div style="width:100%;text-align:left">${exclNotes(r)}${relaxBlock(ns.relax)}</div></div>`;
   } else {
     h += exclNotes(r);
     const boost = ns.preset === 'VAL' ? Engine.ratingBoostFlags(r.main) : null;
@@ -391,21 +447,56 @@ function seasonSection(brand) {
 }
 function NearScreen() {
   const L = ref(); const ns = nearState(); const man = manual();
-  const head = topBar('주변 카페', { sub: man ? `반경 1km · 선택 지역 기준 · ${S.area.label}` : L ? `반경 1km · GPS 기준 · 정확도 약 ${Math.trunc(L.acc || 0)}m` : LOC_SUB[locBtnState()], subWarn: !L && !man && ['denied', 'failed'].includes(locBtnState()),
+  const RT = F.radiusText(S.filter);
+  const head = topBar('주변 카페', { sub: man ? `반경 ${RT} · 선택 지역 기준 · ${S.area.label}` : L ? `반경 ${RT} · GPS 기준 · 정확도 약 ${Math.trunc(L.acc || 0)}m` : LOC_SUB[locBtnState()], subWarn: !L && !man && ['denied', 'failed'].includes(locBtnState()),
     right: `<button class="locbtn" data-loc="${locBtnState()}" aria-label="내 위치 확인하기" ${S.locStatus === 'measuring' ? 'aria-busy="true" disabled' : ''} data-a="${act(() => requestLocation('header'))}">${I.placeOff}<span>${LOC_BTN[locBtnState()]}</span></button>`,
-    extra: EN ? `<div style="display:flex;flex-direction:column;gap:2px">${catTabs()}${L && S.homeCat === 'near' ? sortTabs() + chipBar() : ''}</div>` : null });
+    extra: EN ? `<div style="display:flex;flex-direction:column;gap:2px">${catTabs()}${S.homeCat === 'near' ? nlBox() : ''}${L && S.homeCat === 'near' ? sortTabs() + chipBar() : ''}</div>` : null });
   let body; const cat = EN && !S.dbError ? S.homeCat : 'near';
   if (cat === 'fav') body = `<div class="scroll" data-keep="fav">${favBody()}</div>`;
   else if (cat === 'mymenu' && (L || !S.taste.tags.length)) body = `<div class="scroll" data-keep="mymenu">${myMenuBody(L)}</div>`;
   else if (S.dbError) body = `<div class="scroll" data-keep="near">${box(`<p class="b">매장 정보를 불러오지 못했어요.</p><p>${esc(S.dbError)}</p>`, 'warn')}</div>`;
   else if (!EN) body = `<div class="scroll"><div style="padding-top:24px"><p class="b">매장 DB를 준비하고 있어요…</p>${sub('전국 일괄 파일(모든 사용자 동일)을 처음 한 번 받아 기기 안에서 읽고 있어요. 위치 정보는 보내지 않아요.')}<div class="progress"></div></div></div>`;
-  else if (!L) body = `<div class="scroll">${locationHelp()}</div>`;
+  else if (!L) body = `<div class="scroll">${S.homeCat === 'near' ? nlPanel() : ''}${locationHelp()}</div>`;
   else if (!ns) body = `<div class="center"><div class="spinner"></div></div>`;
-  else body = `<div class="scroll list ${UI.anim ? 'fadein' : ''}" data-keep="near">${nearList(ns)}</div>`;
+  else if (UI.view === 'map') body = `<div class="mapwrap">${nlPanel(true)}${mapView(ns)}</div>`;
+  else body = `<div class="scroll list ${UI.anim ? 'fadein' : ''}" data-keep="near">${nlPanel()}${nearList(ns)}</div>`;
   UI.anim = false;
   let foot = '';
-  if (ns && cat === 'near') { const r = ns.r; foot += `<button class="summary" data-a="${act(() => openSheet({ type: 'nearInfo' }))}"><span class="t">${esc(`${MenuTable.menuName(ns.filter.menu)} · 1km 안 ${r.main.length + r.noPriceList.length}곳 · 예시 가격 포함`)}</span><span class="i" aria-label="현재 기준·가격·별점 안내 열기">${I.info}</span></button>`; }
+  if (ns && cat === 'near') { const r = ns.r; foot += `<button class="summary" data-a="${act(() => openSheet({ type: 'nearInfo' }))}"><span class="t">${esc(`${MenuTable.menuName(ns.filter.menu)} · ${F.radiusText(ns.filter)} 안 ${r.main.length + r.noPriceList.length}곳 · 예시 가격 포함`)}</span><span class="i" aria-label="현재 기준·가격·별점 안내 열기">${I.info}</span></button>`; }
   return head + body + foot;
+}
+
+// ---------- Beta 1.8.9 앱 안 약도(청구항 6): 매장 좌표만 SVG로. 지도 타일·외부 요청 없음(CSP 'self' 유지) ----------
+export const MAP_NOTE = '약도: 기기에 저장된 매장 좌표만 표시 · 도로·건물 없음 · 외부 지도 서버 요청 없음 · 실제 길은 지도 앱에서';
+const mapPts = (ns, L) => {
+  const db = EN.db, r = ns.r; const kx = Geo.M_PER_DEG * Math.cos(L.lat * Math.PI / 180), ky = Geo.M_PER_DEG;
+  const xy = i => [(db.lng(i) - L.lng) * kx, -(db.lat(i) - L.lat) * ky];
+  const res = []; const seen = new Set();
+  const add = (e, rank, kind) => { if (seen.has(e.i)) return; seen.add(e.i); const [x, y] = xy(e.i); res.push({ e, rank, kind, x, y }); };
+  if (r.baseCount === 0) r.fallback.forEach(e => add(e, 0, e.size ? 'p' : 'n'));
+  else { r.main.forEach((e, n) => add(e, n + 1, 'p')); r.noPriceList.forEach(e => add(e, 0, 'n')); for (const k of Reasons) if (ns.inc[k]) r.groups[k].forEach(e => add(e, 0, 'n')); }
+  return { res, xy };
+};
+function mapView(ns) {
+  const L = ref(); const f = ns.filter; const R = ns.r.baseCount === 0 && ns.r.fallback.length ? Math.max(Radius.SEARCH_M, ...ns.r.fallback.map(e => e.d)) : F.radius(f);
+  const { res, xy } = mapPts(ns, L); const M = UI.map; const half = R * 1.08 / M.z;
+  const vb = [M.cx - half, M.cy - half, half * 2, half * 2]; const px = half * 2 / 360; // 화면 1px ≈ 지도 px m
+  const bg = Geo.query(EN.db, L, R).filter(h => !res.some(o => o.e.i === h.i)).map(h => { const [x, y] = xy(h.i); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(2.2 * px).toFixed(2)}" class="mbg"/>`; }).join('');
+  const rings = [250, 500, 1000, 2000, 3000].filter(m => m <= R + 1).map(m => `<circle cx="0" cy="0" r="${m}" class="mring"/><text x="${(m * 0.707 + 3 * px).toFixed(1)}" y="${(-m * 0.707).toFixed(1)}" class="mlab" font-size="${(11 * px).toFixed(2)}">${m >= 1000 ? m / 1000 + 'km' : m + 'm'}</text>`).join('');
+  const order = [...res].sort((a, b) => (a.kind === b.kind ? (b.rank || 999) - (a.rank || 999) : a.kind === 'n' ? -1 : 1)); // 순위 높은 마커가 위에
+  const mk = order.map(o => { const sel = M.sel === o.e.i; const rr = (o.rank && o.rank <= 99 ? 11 : 7) * px * (sel ? 1.25 : 1);
+    return `<g class="mk ${o.kind}${sel ? ' sel' : ''}" role="button" tabindex="0" aria-label="${esc(EN.db.name[o.e.i])}${o.rank ? ` ${o.rank}위` : ''}" data-a="${act(() => { UI.map.sel = o.e.i; render(); })}"><circle cx="${o.x.toFixed(1)}" cy="${o.y.toFixed(1)}" r="${rr.toFixed(2)}"/>${o.rank && o.rank <= 99 ? `<text x="${o.x.toFixed(1)}" y="${(o.y + 4 * px).toFixed(1)}" font-size="${(11 * px * (sel ? 1.2 : 1)).toFixed(2)}">${o.rank}</text>` : ''}</g>`; }).join('');
+  const me = manual() ? `<g class="me area"><rect x="${-6 * px}" y="${-6 * px}" width="${12 * px}" height="${12 * px}" transform="rotate(45)"/></g>` : `<g class="me"><circle cx="0" cy="0" r="${(L.acc && L.acc < R ? L.acc : 0).toFixed(1)}" class="acc"/><circle cx="0" cy="0" r="${(7 * px).toFixed(2)}"/></g>`;
+  const scaleM = [50, 100, 200, 250, 500, 1000].find(m => m / px >= 60) || 1000;
+  const sel = M.sel != null ? res.find(o => o.e.i === M.sel) : null;
+  const card = sel ? `<div class="mapcard">${storeCard(sel.e, sel.rank, ns.r.baseCount === 0, false)}<button class="txtbtn mapclose" data-a="${act(() => { UI.map.sel = null; render(); })}">닫기</button></div>` : '';
+  const cnt = res.filter(o => o.kind === 'p').length;
+  return `<div class="mapbox"><svg id="nearMap" class="map" viewBox="${vb.map(v => v.toFixed(1)).join(' ')}" data-r="${R}" role="img" aria-label="결과 매장 약도 · 가격 있는 매장 ${cnt}곳 · 전체 ${res.length}곳">
+    <rect x="${-R * 3}" y="${-R * 3}" width="${R * 6}" height="${R * 6}" class="mfill"/>${rings}${bg}${me}${mk}</svg>
+    <div class="mapctl"><button class="iconbtn" aria-label="확대" data-a="${act(() => { UI.map.z = Math.min(8, M.z * 2); render(); })}">＋</button><button class="iconbtn" aria-label="축소" data-a="${act(() => { UI.map.z = Math.max(1, M.z / 2); if (UI.map.z === 1) { UI.map.cx = 0; UI.map.cy = 0; } render(); })}">－</button><button class="iconbtn" aria-label="내 위치로" data-a="${act(() => { UI.map.cx = 0; UI.map.cy = 0; render(); })}">◎</button></div>
+    <div class="mapnorth" aria-hidden="true">N↑</div><div class="mapscale" aria-label="축척 ${scaleM}m"><i style="width:${(scaleM / px).toFixed(0)}px"></i><span>${scaleM >= 1000 ? scaleM / 1000 + 'km' : scaleM + 'm'}</span></div>
+    <div class="maplegend"><span><i class="lg p"></i>가격 있음(순위)</span><span><i class="lg n"></i>가격 정보 없음</span><span><i class="lg me"></i>${manual() ? '선택 지역 중심' : '내 위치'}</span></div>
+    ${card}</div><p class="sub mapnote">${MAP_NOTE}</p>`;
 }
 
 // ---------- 매장 상세 ----------
@@ -416,7 +507,8 @@ function sizeTable(rows, onCompare) {
     const name = MenuTable.menuName(k);
     const cells = `<span class="cells" style="--cols:${cols.length}">${cols.map(c => { const z = ss.list.find(x => x.n === c);
       return `<span class="cell">${!z ? `<span class="sub">${ss.missing ? '미입력' : '–'}</span>` : `<span class="rowprice s17">${z.verified ? `<span class="chk" aria-label="확인된 가격">${I.check}</span>` : ''}${won(z.p)}</span>${z.ml != null ? `<span class="sub">${MenuTable.mlText(z)}</span>` : ''}`}</span>`; }).join('')}</span>`;
-    h += `<hr><button class="trow sz" aria-label="${esc(name)} 가격 비교" data-a="${act(() => onCompare(k))}"><span class="nm"><b>${esc(name)}</b>${ss.list.some(z => Engine.isOld(z.d)) ? `<div style="padding-top:4px">${badge('오래된 가격', 'dark')}</div>` : ''}</span>${cells}</button>`;
+    const z0 = ss.list[0];
+    h += `<hr><button class="trow sz" aria-label="${esc(name)} 가격 비교" data-a="${act(() => onCompare(k))}"><span class="nm"><b>${esc(name)}</b>${ss.list.some(z => Engine.isOld(z.d)) ? `<div style="padding-top:4px">${badge('오래된 가격', 'dark')}</div>` : ''}${z0 ? `<span class="sub srcline" style="display:block">${esc(srcDateText(z0))}</span>` : ''}</span>${cells}</button>`;
   }
   return h + '</div>';
 }
@@ -447,6 +539,7 @@ function StoreScreen(i) {
   } else if (EN.gp.has(i)) {
     const rows = EN.gp.byStore.get(i);
     b += infoLine(`착한가격업소 메뉴판 가격 ${rows.length}개 · 공공데이터`, [`착한가격업소 메뉴판 가격 ${rows.length}개 · 공공데이터 · 용량 미공개`, `출처: ${GP_SOURCE} · 매장 메뉴판 가격 · 용량 미공개`, '음료가 아닌 메뉴는 비교·필터·점수에서 빼요.', SAME, ...DATA_NOTICE], '가격 안내');
+    b += `<p class="sub srcline">${esc(srcDateText({ src: GP_SOURCE, d: GP_DATE }))}</p>`;
     if (Engine.isOld(GP_DATE)) b += `<div style="padding-bottom:4px">${badge('오래된 가격', 'dark')}</div>`;
     b += `<div class="table">${rows.map((g, n) => (n > 0 ? '<hr>' : '') + priceRow(g.menu, g.price, !g.beverage ? '음료 아님 · 비교 제외' : null, g.keys[0] ? cmp(g.keys[0]) : null)).join('')}</div>`;
   } else if (EN.ind && EN.ind.has(db.name[i], db.addr[i])) {
@@ -456,6 +549,7 @@ function StoreScreen(i) {
     const rp = db.rep.get(i);
     if (rp && !rp.pending) {
       b += infoLine(`제보 가격 · ${rp.date}`, [`제보 가격 · 용량 미공개 · 이용자 제보(일치 2건 이상·검수) · ${rp.date}`, SAME, ...DATA_NOTICE], '가격 안내');
+      b += `<p class="sub srcline">${esc(srcDateText({ src: '이용자 제보', d: rp.date }))}</p>`;
       b += `<div class="table">${['am_h', 'am_i', 'la_h'].filter(k => rp.prices[k] != null).map((k, n) => (n > 0 ? '<hr>' : '') + priceRow(MenuTable.menuName(k), rp.prices[k], null, cmp(k), Engine.isOld(rp.date) ? badge('오래된 가격', 'dark') : '')).join('')}</div>`;
     } else b += box(`<p class="b">${PRICE_UNCONFIRMED}${rp && rp.pending ? ' · 제보 1건 확인 중' : ''}</p><p>개인 카페 가격은 서로 다른 기기 2대 이상의 일치 제보가 모이면 표시돼요.</p>`);
   }
@@ -535,13 +629,13 @@ function FavScreen() {
 
 // ---------- 정보·문서 ----------
 const cstate = c => ({ agree: '동의', deny: '동의 안 함', withdrawn: '철회함' }[c.loc] || '-') + (c.age === 'u14' ? ' (만 14세 미만)' : '');
-const MAPTXT = "앱 안 지도는 없어요. '길 안내'를 누르면 고른 외부 지도 앱(네이버 지도·카카오맵·TMAP·Google 지도 등)을 열고 매장 위치(좌표·상호)만 전달해요. 내 위치 좌표는 보내지 않아요.";
+const MAPTXT = "앱 안 약도(1.8.9)는 기기에 저장된 매장 좌표만 그려요. 도로·건물 지도는 없고 외부 지도 서버에 요청하지 않아요. '길 안내'를 누르면 고른 외부 지도 앱(네이버 지도·카카오맵·TMAP·Google 지도 등)을 열고 매장 위치(좌표·상호)만 전달해요. 내 위치 좌표는 보내지 않아요.";
 const DOCS = {
   terms: ['서비스 이용약관', '문안 확정 전 · 정식 출시 전 변호사 검토\n\n· 로그인 없이 이용, 익명 기기 ID 사용\n· 이용자 별점·제보의 이용 허락 범위 (문안 자리)\n· 다른 서비스에서 복사한 정보 제보 금지, 자체 DB 무단 수집 금지\n· 권리침해 신고 → 소명 확인 → 정정 또는 30일 이내 임시조치 → 통지 → 앱 안 공시(정보통신망법 제44조의2)\n· 포괄 면책 조항을 두지 않아요'],
   lbs: ['위치기반서비스 이용약관', `문안 확정 전\n\n· 개인위치정보는 기기 안에서 거리 계산에만 쓰고 서버·지도 앱·광고로 보내거나 저장하지 않아요\n· ${MAPTXT}\n· 동의는 선택이며 언제든 철회할 수 있어요\n· 감독기관: 방송미디어통신위원회`],
   privacy: ['개인정보처리방침', `문안 확정 전\n\n· 수집: 익명 기기 ID, 별점, 제보·신고 내용, 제출 날짜\n· 수집 안 함: 이름·전화번호·이메일·광고 ID·위치 좌표\n· 외부 지도 앱: ${MAPTXT}\n· 보유·파기: (확정 전)\n· 광고와 광고 SDK가 없어요\n· 문의처: (확정 전) · 감독기관: 개인정보보호위원회`],
   policy: ['별점 운영정책', '1. 평가 자격: 앱을 쓰는 기기, 해당 매장 100m 안 현장 확인(기기 안에서만 판정), 기기당 매장 1개(수정 가능, 재등록 30일 후). 이해관계자는 평가할 수 없어요.\n2. 노출 기간: 최근 12개월 별점을 게시하고 평균에 반영해요.\n3. 계산 방식: 평균 + 베이지안 보정(브랜드 평균 또는 개인 카페 평균). 별점 5개 미만은 \'별점 부족\'.\n4. 삭제·보류 기준: 스팸, 현장 확인 우회, 자동화 의심, 이해관계자 평가, 복사한 정보일 때만. 점수가 낮다는 이유로 지우지 않아요.\n5. 이의제기: 앱 안 신고 창구, 영업일 3일 안 검토(초기값).\n6. 보상 없음: 별점·제보에 대가를 주지 않아요.\n7. 기록 보관: 처리 기록 보관(기간 확정 전).\n8. 임시조치: 권리침해 신고 → 소명 확인 → 정정 또는 30일 이내 임시조치 → 통지 → 앱 안 공시.'],
-  criteria: ['추천 기준 설명 · 점수 기반 추천', '점수 기반 추천(거리·메뉴판 가격·앱 이용자 별점 가중합)이에요. 반경 1km 안 매장만 점수를 계산해요(별점·가격 제보의 현장 확인은 별도 규칙으로 매장 100m 안).\n\n· 균형: 거리 0.4 · 가격 0.3 · 별점 0.3\n· 가까운 곳: 거리순 정렬\n· 가성비: 가격 80% + 이용자 별점 20%(별점 5개 이상일 때). 가격 점수 = (목록 최고가 − 가격)/(최고가 − 최저가), 거리는 반영 안 함\n· 이용자 별점: 0.2 · 0.2 · 0.6\n\n· 거리: 1 − 거리/1km (기기 안 직선거리, 앱 안 지도 없음)\n· 가격: 1 − (같은 메뉴의 12개 브랜드 메뉴판 가격 중 백분위). 모집단 고정, 용량 환산 없음.\n· 별점: 베이지안 보정 (v/(v+m))·R + (m/(v+m))·C, m=10. 별점 5개 미만은 \'별점 부족\'.\n· 결측: 없는 항목의 가중치는 나머지에 비례 재분배하고 \'정보 부족\' 배지. 모든 정렬에서 선택 메뉴 가격이 없는 매장은 순위에 넣지 않고 맨 아래 \'가격 정보 없음\' 묶음에 같은 정렬 순서로 보여줘요(3km 대체 목록도 동일).\n· 필터는 결과를 걸러낼 뿐 정렬을 바꾸지 않아요.'],
+  criteria: ['추천 기준 설명 · 점수 기반 추천', '점수 기반 추천(거리·메뉴판 가격·앱 이용자 별점 가중합)이에요. 반경 1km 안 매장만 점수를 계산해요(별점·가격 제보의 현장 확인은 별도 규칙으로 매장 100m 안).\n\n· 균형: 거리 0.4 · 가격 0.3 · 별점 0.3\n· 가까운 곳: 거리순 정렬\n· 가성비: 가격 80% + 이용자 별점 20%(별점 5개 이상일 때). 가격 점수 = (목록 최고가 − 가격)/(최고가 − 최저가), 거리는 반영 안 함\n· 이용자 별점: 0.2 · 0.2 · 0.6\n\n· 거리: 1 − 거리/1km (기기 안 직선거리)\n· 가격: 1 − (같은 메뉴의 12개 브랜드 메뉴판 가격 중 백분위). 모집단 고정, 용량 환산 없음.\n· 별점: 베이지안 보정 (v/(v+m))·R + (m/(v+m))·C, m=10. 별점 5개 미만은 \'별점 부족\'.\n· 결측: 없는 항목의 가중치는 나머지에 비례 재분배하고 \'정보 부족\' 배지. 모든 정렬에서 선택 메뉴 가격이 없는 매장은 순위에 넣지 않고 맨 아래 \'가격 정보 없음\' 묶음에 같은 정렬 순서로 보여줘요(3km 대체 목록도 동일).\n· 필터는 결과를 걸러낼 뿐 정렬을 바꾸지 않아요.\n\n자연어 검색(1.8.9): 검색어를 기기 안의 규칙 기반 분석(정해진 낱말·숫자 규칙, AI 모델 아님)으로 메뉴·온도·사이즈·최대 가격·거리(100m~1km)·정렬·브랜드 포함/제외·카페 유형·별점 최소값으로 바꿔 위 필터와 정렬에 그대로 넣어요. \'싼 곳\'은 가성비(가격 80%) 정렬로 반영해요. 분위기·시설·영업시간처럼 데이터가 없는 조건은 \'데이터 없음 — 반영 안 함\'으로 보여 주고 결과에 반영하지 않아요. 검색어는 저장하거나 보내지 않아요.'],
   sources: ['데이터 출처·기준일 · 제휴 없음 · 광고 없음', `· 매장(상호·주소·좌표): 소상공인시장진흥공단 상가(상권)정보, 기준일 2026-06-30, 소분류 I21201 '카페'. Beta 1.8.3에서 추가된 매장 40,749곳: 행정안전부 휴게음식점 인허가 (data.go.kr 15006730) 기준일 2026-10-14(영업/정상, 업태 커피숍 등 카페). 전국 파일 하나를 처음 한 번 받아 기기에 저장하고, 모든 사용자가 같은 파일을 써요(위치에 따라 받는 파일이 달라지지 않아요).\n· 개인 카페는 분류 규칙에 따른 추정이라 '개인 카페(추정)'으로 표시해요.\n· 브랜드 기본 가격: 예시 가격(확인 전) — 12개 브랜드 공식 사이트가 가격을 게시하지 않아 매장 메뉴판으로 확인 전이에요.\n· 용량: 공식 게시값만 표시(빽다방 아메리카노·라떼, 할리스 R/G/V, 폴바셋 룽고), 나머지는 미공개.\n· 개인 카페 가격: 착한가격업소 공공데이터(2026-06-30 기준) 메뉴판 가격, 용량 미공개. 음료가 아닌 메뉴는 비교·필터·점수에서 빼요.\n· 별점은 예시 데이터예요.\n· 지도: ${MAPTXT}\n· 등록된 브랜드·카페와 제휴 관계가 없어요. 브랜드 로고·메뉴 사진은 쓰지 않아요.`],
 };
 function InfoScreen() {
@@ -549,7 +643,8 @@ function InfoScreen() {
   let b = items.map(([k, t]) => listRow(t, () => go('doc/' + k))).join('') + listRow(Promo185.SECTION, () => go('promos')) + listRow('브랜드·업주 정보 수정·삭제·노출 중단 요청', () => go('report/-1/d'));
   b += `<div style="height:12px"></div><p>매장 DB: 상가정보 기준일 2026-06-30 + 인허가(data.go.kr 15006730) 기준일 2026-10-14 · ${EN ? EN.db.size.toLocaleString('ko-KR') + '곳 기기 저장됨' : '불러오는 중'}</p><p>위치 동의: ${cstate(S.consent)}</p>
     <p>내 제출 기록: ${S.outbox.length}건 (서버 미연결 베타: 이 기기에만 보관)</p><p>권한: 위치(선택)만 사용 · 광고 ID·분석 도구 없음 · 외부 서버 요청 없음(앱 파일·전국 DB를 처음 한 번 받기만 함)</p><p>개인정보 문의: (운영자 이메일 확정 전)</p>`;
-  return topBar('정보', { sub: `AI Coffee Web Beta ${VERSION}` }) + `<div class="scroll" data-keep="info">${b}</div>`;
+  b = listRow(`${APP_TITLE} 바뀐 점`, () => go('doc/changelog')) + b;
+  return topBar('정보', { sub: `${APP_TITLE} (웹·iPhone)` }) + `<div class="scroll" data-keep="info">${b}</div>`;
 }
 let OFL = null;
 const termsLinks = () => !Data182.STATUS.length ? '' : h3('원두·맛 정보 (브랜드 공식 홈페이지 기준)') + sub('원문은 싣지 않고 일치한 태그만 써요.') + Data182.STATUS.map(([b, c]) => { const t = Data182.TERMS.find(x => x.brand === b);
@@ -570,6 +665,7 @@ function DocScreen(name) {
       + h3('SIL Open Font License 1.1 전문') + `<p class="pre sub" style="color:var(--text);padding-bottom:16px">${esc(OFL)}</p>`;
     return topBar('오픈소스 라이선스', { onBack: back }) + `<div class="scroll">${b}</div>`;
   }
+  if (name === 'changelog') return topBar(`${APP_TITLE} 바뀐 점`, { onBack: back }) + `<div class="scroll"><p class="b" style="padding-top:12px">${esc(APP_TITLE)}</p><ul class="changelog">${CHANGELOG_189.map(t => `<li>${esc(t)}</li>`).join('')}</ul>${sub('이전 버전 기록은 배포 폴더 RELEASE.txt에 있어요.')}</div>`;
   const d = DOCS[name] || ['문서', '없는 문서예요.'];
   const extra = '';
   return topBar(d[0], { onBack: back }) + `<div class="scroll"><p class="pre" style="padding-top:12px">${esc(d[1] + extra)}</p>${name === 'sources' ? termsLinks() : ''}</div>`;
@@ -577,7 +673,7 @@ function DocScreen(name) {
 
 // ---------- 동의 ----------
 function C01() {
-  return topBar('AI Coffee') + `<div class="scroll">${h2('앱 접근권한 안내')}<p class="b">필수 권한: 없음</p><p>선택 권한: 위치(정밀) — 주변 1km 매장 거리 계산용</p>
+  return topBar('AI CAFE') + `<div class="scroll">${h2('앱 접근권한 안내')}<p class="b">필수 권한: 없음</p><p>선택 권한: 위치(정밀) — 주변 1km 매장 거리 계산용</p>
     ${sub('허용하지 않아도 시·구를 직접 골라 그 지역 중심 기준으로 매장을 찾을 수 있고, 메뉴 비교·즐겨찾기도 이용할 수 있어요. 주소 검색은 없어요.')}
     ${box(`<p class="pre">· 위치는 기기 안에서 거리 계산에만 쓰고 앱 밖(서버·지도 앱·광고)으로 보내지 않아요.
 · ${MAPTXT}
@@ -709,7 +805,7 @@ function filterSheet(sh) {
     ${h3('브랜드 (여러 개, 가나다순)')}<div class="flow tall">${Brands.SORTED.map(([code, b]) => chip(b, d.brands.includes(code), () => { const nb = d.brands.includes(code) ? d.brands.filter(x => x !== code) : [...d.brands, code]; set({ brands: nb, type: nb.length ? 'FR' : d.type }); }, { disabled: d.type === 'IND' })).join('')}</div>
     ${sub(d.type === 'IND' ? '개인 카페를 고르면 브랜드는 선택할 수 없어요.' : '브랜드를 고르면 카페 유형이 프랜차이즈로 바뀌어요.')}
     ${h3('이용자 별점 최소값 (보정 평점)')}<div class="flow tall">${chip('전체', d.rmin == null, () => set({ rmin: null }))}${[3.5, 4.0, 4.5].map(r => chip(`${f1(r)} 이상`, d.rmin === r, () => set({ rmin: r }))).join('')}</div>
-    ${sub('거리 필터는 없어요(반경 1km 고정).', 'padding-bottom:8px')}</div>
+    ${sub(`반경 ${F.radiusText(S.filter)}${S.filter.rmax == null ? '(기본)' : ''} · 거리 조건은 자연어 검색으로 100m~1km (예: 500m 안)`, 'padding-bottom:8px')}</div>
     <div class="foot"><div style="flex:1">${btn('초기화', () => { sh.d = defaultFilter(); sh.pText = ''; sh.vminT = ''; sh.vmaxT = ''; render(); })}</div><div style="flex:2">${btn(cnt == null ? '적용' : `${cnt}곳 보기`, () => { UI.sheet = null; A.setFilter({ ...sh.d, brands: [...sh.d.brands] }); }, 'pri', false, 'id="applyBtn"')}</div></div>`;
   return { body, full: true };
 }
@@ -725,7 +821,7 @@ function sheetContent() {
   if (sh.type === 'menu') return { body: `<div class="sc">${h2('메뉴 선택')}${sub('고른 메뉴의 메뉴판 가격으로 정렬·비교해요.')}<div class="flow tall" style="padding-top:8px">${MenuTable.KEYS.map(k => chip(MenuTable.menuName(k), S.filter.menu === k, () => { UI.sheet = null; A.setFilter({ ...S.filter, menu: k }); })).join('')}</div>${sheetBtns()}</div>` };
   if (sh.type === 'info') return { body: `<div class="sc">${h2(sh.title)}${sh.lines.map(l => `<p class="t15" style="padding:4px 0">· ${esc(l)}</p>`).join('')}${sheetBtns(sh.more)}</div>` };
   if (sh.type === 'nearInfo') return { body: `<div class="sc">${h2('현재 기준')}<p class="b">메뉴: ${MenuTable.menuName(S.filter.menu)}</p><div class="flow tall" style="padding-top:6px">${MenuTable.KEYS.map(k => chip(MenuTable.menuName(k), S.filter.menu === k, () => A.setFilter({ ...S.filter, menu: k }))).join('')}</div>
-    <p style="padding-top:10px">반경: 1km 고정 · 거리 필터 없음 · 1km 안에 없으면 3km 안 가장 가까운 3곳</p><p style="padding-top:4px">정렬: ${Presets[S.preset].short.replace(/\(기본\)$/, '')} · ${Presets[S.preset].sort}</p>
+    <p style="padding-top:10px">반경: ${F.radiusText(S.filter)}${S.filter.rmax == null ? '(기본)' : ''} · 거리 조건은 자연어 검색으로 100m~1km · 반경 안에 없으면 3km 안 가장 가까운 3곳</p><p style="padding-top:4px">정렬: ${Presets[S.preset].short.replace(/\(기본\)$/, '')} · ${Presets[S.preset].sort}</p>
     ${h3('가격·별점 안내')}${[EX_PRICE_NOTICE, ...DATA_NOTICE].map(l => `<p class="t15" style="padding:3px 0">· ${esc(l)}</p>`).join('')}${sheetBtns(['점수 설명 ›', () => go('doc/criteria')])}</div>` };
   if (sh.type === 'report') return { body: `<div class="sc">${h2('정보 제보·신고')}${listRow('가격 제보 (이 매장에서 본 메뉴판 가격)', () => go(`price/${sh.i}`))}<hr>${listRow('별점·제보 신고 / 이의제기', () => go(`report/${sh.i}/c`))}<hr>${listRow('정보 오류 제보 (폐점·이전, 메뉴·가격·용량 오류)', () => go(`report/${sh.i}/x`))}${sheetBtns()}</div>` };
   if (sh.type === 'rate') return { body: `<div class="sc">${rateContent(sh.i, true, sh)}</div>`, full: true };
@@ -839,11 +935,19 @@ export function render() {
 root.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el || !root.contains(el)) return;
   if (el.classList.contains('sheetwrap') && e.target !== el) return; // 시트 안 클릭은 닫지 않음
+  if (UI.mapNoTap && el.closest('svg#nearMap')) return;
   const fn = ACT.get(el.dataset.a); if (fn) { e.preventDefault(); fn(); }
 });
 root.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('card')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape' && UI.sheet) closeSheet(); });
+root.addEventListener('submit', e => { const fm = e.target.closest('form[data-nl]'); if (!fm) return; e.preventDefault(); const q = fm.querySelector('input'); A.nlSearch(q ? q.value : ''); });
+// 1.8.9 약도 끌어서 이동: 끄는 동안은 viewBox만 바꾸고(다시 그리지 않음), 손을 떼면 상태에 반영. 5px 넘게 움직였으면 마커 탭으로 보지 않음
+let DRAG = null;
+root.addEventListener('pointerdown', e => { const sv = e.target.closest('svg#nearMap'); if (!sv) return; const vb = sv.viewBox.baseVal; DRAG = { sv, x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y, k: vb.width / sv.getBoundingClientRect().width, moved: false }; });
+root.addEventListener('pointermove', e => { if (!DRAG) return; const dx = e.clientX - DRAG.x, dy = e.clientY - DRAG.y; if (Math.abs(dx) + Math.abs(dy) > 5) DRAG.moved = true; if (!DRAG.moved) return; const vb = DRAG.sv.viewBox.baseVal; vb.x = DRAG.vx - dx * DRAG.k; vb.y = DRAG.vy - dy * DRAG.k; });
+window.addEventListener('pointerup', () => { if (!DRAG) return; const d = DRAG; DRAG = null; if (!d.moved) return; const vb = d.sv.viewBox.baseVal; UI.map.cx = vb.x + vb.width / 2; UI.map.cy = vb.y + vb.height / 2; UI.mapNoTap = true; setTimeout(() => { UI.mapNoTap = false; }, 0); });
 root.addEventListener('input', e => {
   const el = e.target; const k = el.dataset.in; if (!k) return;
+  if (k === 'nl') { UI.nlText = el.value.slice(0, 100); return; } // 입력 중에는 다시 그리지 않음(한글 조합 유지)
   const digits = (n) => el.value.replace(/\D/g, '').slice(0, n);
   const num = t => { const v = parseInt(t.slice(0, 6), 10); return v > 0 ? v : null; };
   if (k === 'pmax' || k === 'vmin' || k === 'vmax') {

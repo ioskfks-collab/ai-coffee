@@ -1,5 +1,13 @@
 AI Coffee Web — 릴리스 정보
 
+버전: Beta 1.8.9 (Android versionCode 20, versionName 'Beta 1.8.9') — 앱 이름 AI CAFE · 새 아이콘(사용자 로고) · 자연어 검색(규칙 기반 분석, 기기 안) · 앱 안 약도(번들 좌표, 마커 → 매장 카드) · 가격 줄 '출처 · 확인 날짜' · 정보 화면 BETA 1.8.9 + 바뀐 점
+빌드 날짜: 2026-11-26 KST · 작업 폴더 web-1.8.9/ (1.8.7 web/은 그대로) · 서비스 워커 캐시 aic-shell-beta-1.8.9-r1
+기획 백업(build-dist): backup/plan-1.8.6.build-189.md md5 d704a8c57d9ac995b01d95986c0402f9 (2026-11-26 09:42 KST)
+데이터: 변경 없음(aicoffee-db-r4, 2026-10-14 · 1.8.8 수집 중단 유지) · 브랜드 가격 = 예시 가격(확인 전)
+테스트: nlquery 51/51 · nl-filter-check 31/31(독립 계산) · web-qa 25/25(Chromium 390x844, 외부 요청 0) · r4-check 43/43(Chromium) · golden 53/53 · golden182 160/160 · golden183 60/60 · value-sort 6/6 · beta182 21/21 · promo185 31/31 · promo186 73/73 · map-search-187 273/273 · scope-note 16 · p8p9 42
+미검증: WebKit/iOS Safari 실기기(박스 WebKit 실행 불가), 독립 QA. scripts/verify.mjs는 1.8.6 문구 기준이라 이번에 안 돌림
+상세: release/1.8.9/RELEASE_NOTES.md
+
 버전: Beta 1.8.7 r4 (Android versionCode 18, versionName 'Beta 1.8.7') — 시작 화면·헤더 [내 위치 확인하기]로만 위치 확인·광고란 삭제·프로모션 안내창. 배포 상태: QA 통과(웹 Chromium 통과, APK 정적·Robolectric 조건부 통과, 실기기·WebKit 미검증), 2026-10-27 11:29 KST 배포 (CEO2 승인)
 빌드 날짜: 2026-10-27 11:07 KST · 빌드 번호 1107 · 빌드 폴더 qa/builds/1.8.7/build-1107/ · 빌드 스크립트 scripts/release-1.8.7.sh md5 969bc0cc119b9d3be83052ae3d576f59
 기준 문서 md5: 기획서 2ab621c7 / 명세 2a2c0098 / 메인 시안 82633a35 / 데이터 4a17930b (실측 2ab621c7c5ae1fe50248397efca1c2ff / 2a2c009860d688dae373636405c251c2 / 82633a35c908f653c3dd32d49b0a19fd / 4a17930b86b0ce60de308bd10c55bb17)
