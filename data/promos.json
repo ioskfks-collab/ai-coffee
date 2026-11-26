@@ -1,0 +1,103 @@
+{
+ "schema": "aicafe-promos/1",
+ "generated_at": "2026-11-26T10:39+09:00",
+ "checked_at": "2026-11-26T10:39+09:00",
+ "note": "브랜드 공식 이벤트 목록에서 제목·기간·원문 링크만(본문·이미지 없음). 종료일이 명시된 진행 중·예정 행사만. 추천 순위와 무관. 지어낸 값 없음.",
+ "count": 0,
+ "brands": [],
+ "promos": [],
+ "sources": [
+  {
+   "brand": "스타벅스",
+   "url": "https://www.starbucks.co.kr/whats_new/campaign_list.do",
+   "status": "확인",
+   "collected": 14,
+   "published": false
+  },
+  {
+   "brand": "이디야",
+   "url": "https://www.ediya.com/contents/event.html",
+   "status": "확인",
+   "collected": 1,
+   "published": false
+  },
+  {
+   "brand": "폴바셋",
+   "url": "https://www.baristapaulbassett.co.kr/whatsNews/event/List.pb",
+   "status": "확인",
+   "collected": 10,
+   "published": false
+  },
+  {
+   "brand": "파스쿠찌",
+   "url": "https://www.pascucci.co.kr/event/eventList.asp",
+   "status": "확인",
+   "collected": 4,
+   "published": false
+  }
+ ],
+ "held": [
+  {
+   "brand": "스타벅스",
+   "count": 14,
+   "reason": "약관 확인 전(DATA BOT 확인 OK 아님) — 배포 보류"
+  },
+  {
+   "brand": "이디야",
+   "count": 1,
+   "reason": "약관 확인 전(DATA BOT 확인 OK 아님) — 배포 보류"
+  },
+  {
+   "brand": "파스쿠찌",
+   "count": 4,
+   "reason": "약관 확인 전(DATA BOT 확인 OK 아님) — 배포 보류"
+  },
+  {
+   "brand": "폴바셋",
+   "count": 10,
+   "reason": "약관 확인 전(DATA BOT 확인 OK 아님) — 배포 보류"
+  }
+ ],
+ "skipped": [
+  {
+   "brand": "컴포즈커피",
+   "url": "https://composecoffee.com/event",
+   "reason": "약관 제22조②: 사전 승낙 없는 영리 목적 복제·배포 금지 — 앱에 광고가 있어 자동 수집 제외"
+  },
+  {
+   "brand": "커피빈",
+   "url": "https://www.coffeebeankorea.com/news/list.asp",
+   "reason": "약관 제13조②: 사전 승낙 없는 영리 목적 복제·배포 금지 — 자동 수집 제외"
+  },
+  {
+   "brand": "할리스",
+   "url": "https://www.hollys.co.kr/news/event/list.do",
+   "reason": "약관 제15조2: 비영리 이용 외 상업적 사용 금지 — 자동 수집 제외"
+  },
+  {
+   "brand": "메가MGC커피",
+   "url": "https://www.mega-mgccoffee.com/",
+   "reason": "범위 밖(TLS 연결 실패, 우회 안 함)"
+  },
+  {
+   "brand": "하삼동커피",
+   "url": "https://www.hasamdongcoffee.com/",
+   "reason": "범위 밖(TLS dh key too small, 우회 안 함)"
+  },
+  {
+   "brand": "텐퍼센트커피",
+   "url": "https://tenpercentcoffee.com/",
+   "reason": "범위 밖(TLS 연결 실패, 우회 안 함)"
+  },
+  {
+   "brand": "투썸플레이스",
+   "url": "https://www.twosome.co.kr/",
+   "reason": "범위 밖(공식 이벤트 목록 페이지 없음)"
+  },
+  {
+   "brand": "빽다방",
+   "url": "https://paikdabang.com/news/?cate=event",
+   "reason": "범위 밖(기간에 연도 없음 — 자동 판정 부적합)"
+  }
+ ]
+}

@@ -333,3 +333,12 @@ svg.map .mk text { fill: #fff; text-anchor: middle; font-weight: 800; font-famil
 .mapcard .mapclose { position: absolute; right: 52px; top: -40px; min-height: 36px; padding: 0 12px; background: var(--card); border-radius: 999px; box-shadow: 0 1px 3px rgba(43, 29, 20, .2); font-weight: 700; }
 .mapnote { padding: 6px 2px 0; }
 .nlpanel.compact { padding: 0 6px; margin: 4px 0 8px; border-radius: 999px; }
+
+/* 1.8.9 r2 프로모션 상태 줄·카드 아래 줄(ui promo-states-1.8.9r2) */
+.promostatus{font-size:var(--fs-14,14px);color:#6B5546;padding:4px 0 8px;word-break:keep-all}
+.promostatus.warn{color:#B5483B}
+.promoempty{padding:24px 0 8px;text-align:left}
+.promoempty .t16{font-size:16px;font-weight:700;color:#2B1D14}
+.pc-foot{margin-top:4px}
+.pc-foot .pc-period,.pc-foot .pc-src,.pc-foot .pc-checked{font-size:14px;color:#6B5546;word-break:keep-all;margin:2px 0}
+.pc-scope-line{margin-top:6px}

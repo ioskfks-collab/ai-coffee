@@ -1,5 +1,14 @@
 AI Coffee Web — 릴리스 정보
 
+버전: Beta 1.8.9 r2 (Android versionCode 21, versionName 'Beta 1.8.9') — 공식 프로모션 목록 자동 갱신: 앱 실행 시 같은 Pages 출처 data/promos.json 1회 받기(시간 제한 6초·재시도 없음)·성공본만 저장·실패 시 저장본/번들 표시(상태 줄)·종료일 다음 날 00:00(KST)부터 숨김·카드 아래 '기간 / 출처 + [원문 보기] / 확인 시각'
+빌드 날짜: 2026-11-26 KST · 서비스 워커 캐시 aic-shell-beta-1.8.9-r2 (promos.json은 SW 캐시를 거치지 않음) · CSP 그대로(connect-src 'self')
+기획 백업(build-dist): backup/plan-1.8.6.build-1892.md md5 d704a8c57d9ac995b01d95986c0402f9 (2026-11-26 10:45 KST)
+외부 요청: 같은 Pages 출처의 data/promos.json 1회(실행 시)뿐 — 다른 외부 요청 0
+데이터: promos.json = promo-pipeline/fetch_promos.py 결과. 자동 수집 4곳(스타벅스·이디야·폴바셋·파스쿠찌) 중 약관 확인 OK 브랜드만 배포 — 2026-11-26 확인 OK 0곳 → 0건 배포. 컴포즈커피·커피빈·할리스는 약관(영리 목적 복제·배포 금지)으로 자동 수집 제외
+테스트: web-r2-qa 25/25(Chromium 390x844: 온라인·저장본 오프라인·갱신 실패 500/형식 오류/시간 초과·첫 실행 오프라인·모의 날짜 기간 경계·SW 오프라인·외부 요청 0) · web-qa 25/25 · r4-check 43/43 · promo185 31/31 · promo186 73/73 · golden 53/53 · golden182 160/160 · golden183 60/60 · p8p9 42 · scope-note 16 · nlquery 51/51 · nl-filter-check 31/31 · map-search-187 273/273
+미검증: WebKit/iOS Safari 실기기, Android 실기기에서 실제 네트워크 받기(에뮬레이터 없음), 독립 QA
+상세: release/1.8.9/RELEASE_NOTES_r2.md
+
 버전: Beta 1.8.9 (Android versionCode 20, versionName 'Beta 1.8.9') — 앱 이름 AI CAFE · 새 아이콘(사용자 로고) · 자연어 검색(규칙 기반 분석, 기기 안) · 앱 안 약도(번들 좌표, 마커 → 매장 카드) · 가격 줄 '출처 · 확인 날짜' · 정보 화면 BETA 1.8.9 + 바뀐 점
 빌드 날짜: 2026-11-26 KST · 작업 폴더 web-1.8.9/ (1.8.7 web/은 그대로) · 서비스 워커 캐시 aic-shell-beta-1.8.9-r1
 기획 백업(build-dist): backup/plan-1.8.6.build-189.md md5 d704a8c57d9ac995b01d95986c0402f9 (2026-11-26 09:42 KST)

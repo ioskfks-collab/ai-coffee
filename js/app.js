@@ -4,7 +4,7 @@ import { buildEngine, Brands, MenuTable, EXAMPLE, GP_SOURCE, GP_DATE, Geo, Radiu
 import { I } from './icons.js';
 import { ID_MAP_R2_R3, ID_MAP_R3_R4 } from './idmap.js';
 import { MenuLinks, Seasonal, TasteTags, MyMenu, TastePrefs, Data182 } from './beta182.js';
-import { Promotions, PromoData, Promo185, recurLabel, PromoNotice, PROMO_HIDE_KEY } from './promotions.js';
+import { Promotions, PromoData, Promo185, recurLabel, PromoNotice, PROMO_HIDE_KEY, PromoStatus, PromoCardText } from './promotions.js';
 import { BrandLinks, LinkData, P9 } from './brandlinks.js';
 import { PhotoLinks, IndPriceTable, indLabel, indSourceLine } from './beta183.js';
 
@@ -16,7 +16,8 @@ export const CHANGELOG_189 = ['앱 아이콘을 새 AI CAFE 로고로 바꿨어�
   '데이터가 없는 조건(분위기·시설·영업시간·지원하지 않는 메뉴 등)은 "데이터 없음 — 반영 안 함"으로 보여 주고 결과에는 반영하지 않아요.',
   '앱 안 약도: 결과 매장을 내 위치 기준 약도에 표시해요. 매장 좌표만 그리고 도로·건물은 없어요(외부 지도 서버 요청 없음). 길찾기는 지금처럼 지도 앱으로 열어요.',
   '가격마다 "출처 · 확인 날짜"를 표시해요. 확인 날짜가 없는 예시 가격은 "확인일 없음"으로 적고, 60일이 지난 가격에는 "오래된 가격" 배지를 붙여요.',
-  '필터에 거리(반경 100m~1km)·사이즈(가장 작은/큰 사이즈)·제외 브랜드 조건을 더했어요.'];
+  '필터에 거리(반경 100m~1km)·사이즈(가장 작은/큰 사이즈)·제외 브랜드 조건을 더했어요.',
+  '공식 프로모션: 앱을 열 때 같은 서버의 프로모션 목록(promos.json)을 한 번 받아 와요. 목록은 브랜드 공식 이벤트 페이지에서 기간·출처가 글자로 적힌 것만 모은 거예요. 받지 못하면 마지막으로 받은 목록을 보여 주고, 기간이 끝난 프로모션은 자동으로 숨겨요(한국 시간 종료일 23:59까지 표시).'];
 const DB_URL = 'data/aicoffee-db-r4.txt.gz', DB_CACHE = 'aic-db-2026-10-14-r4', LS = 'aic.state', LS_A2HS = 'aic.a2hsShown';
 
 // ---------- 상태 ----------
@@ -404,7 +405,7 @@ function promoCard(p, showBrand = true) {
   // Beta 1.8.6 P8(ui §6-1·§8-3): 브랜드→제목→요일 칩→혜택(2줄 접기)→기간→원문 범위 상자(scope_note 그대로, 비면 숨김)→출처 줄→공식 출처 보기. 토글 하나로 혜택·범위 상자 함께 펼침
   const open = UI.promoOpen.has(p.id);
   const tog = act(() => { open ? UI.promoOpen.delete(p.id) : UI.promoOpen.add(p.id); render(); });
-  return `<div class="promocard ${open ? 'open' : ''}" data-pid="${esc(p.id)}">${showBrand ? `<p class="pc-brand">${esc(p.brand)}</p>` : ''}<p class="pc-title">${esc(p.title)}</p>${p.recurWeekday ? `<div class="promorecur">${badge(recurLabel(p.recurWeekday))}</div>` : ''}<p class="foldtxt pc-benefit ${open ? 'open' : ''}">${esc(p.benefitText)}</p><button class="txtbtn c foldbtn pc-row" ${open ? '' : 'hidden'} aria-expanded="${open}" data-a="${tog}">${open ? Promo185.LESS : Promo185.MORE}</button><p class="pc-period">기간 ${esc(Promotions.period(p))} · ${esc(p.scope)}</p>${p.scopeNote ? `<div class="pc-scope"><p class="pc-scope-l">원문 범위·조건</p><p class="pc-scope-b foldscope ${open ? 'open' : ''}">${esc(p.scopeNote)}</p></div>` : ''}<p class="pc-src">${esc(Promo185.sourceLine(p))}</p><a class="txtbtn c promolink pc-row" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener noreferrer">${Promo185.LINK}<span class="sub">&nbsp;${Promo185.NET_NOTE}</span></a></div>`;
+  return `<div class="promocard ${open ? 'open' : ''}" data-pid="${esc(p.id)}">${showBrand ? `<p class="pc-brand">${esc(p.brand)}</p>` : ''}<p class="pc-title">${esc(p.title)}</p>${p.recurWeekday ? `<div class="promorecur">${badge(recurLabel(p.recurWeekday))}</div>` : ''}${p.benefitText ? `<p class="foldtxt pc-benefit ${open ? 'open' : ''}">${esc(p.benefitText)}</p>` : ''}<button class="txtbtn c foldbtn pc-row" ${open ? '' : 'hidden'} aria-expanded="${open}" data-a="${tog}">${open ? Promo185.LESS : Promo185.MORE}</button>${p.scope ? `<p class="pc-scope-line sub">${esc(p.scope)}</p>` : ''}${p.scopeNote ? `<div class="pc-scope"><p class="pc-scope-l">원문 범위·조건</p><p class="pc-scope-b foldscope ${open ? 'open' : ''}">${esc(p.scopeNote)}</p></div>` : ''}<div class="pc-foot"><p class="pc-period">${esc(PromoCardText.period(p))}${p.recurWeekday ? ' · ' + esc(recurLabel(p.recurWeekday)) : ''}</p><p class="pc-src">${esc(PromoCardText.source(p))}</p><a class="txtbtn c promolink pc-row" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener noreferrer">${PromoCardText.LINK}</a><p class="pc-checked">${esc(PromoCardText.checked(p))}</p></div></div>`; // 1.8.9 r2(ui promo-states §2): 기간 → 출처 + [원문 보기] → 확인 시각
 }
 // Beta 1.8.6 P9: 외곽선 버튼(전체 폭 48dp)
 const p9Button = fn => `<button class="p9btn" data-a="${act(fn)}">${P9.BUTTON}</button>`;
@@ -428,17 +429,19 @@ function BrandLinksScreen() {
 }
 export function promoSection(brand, items = PromoData.items, now = Date.now()) {
   const vis = brand ? Promotions.forBrand(items, brand, now).sort((a, b) => a.endDate < b.endDate ? -1 : a.endDate > b.endDate ? 1 : a.id < b.id ? -1 : 1) : [];
-  if (PromoData.failed) return ''; // Beta 1.8.6: 불러오기 실패면 섹션째 숨김
+  if (PromoData.failed) return ''; // Beta 1.8.6: 불러오기 실패면 섹션째 숨김(1.8.9 r2: 원격·저장본·번들 모두 없을 때만)
   return vis.length ? `<section class="promo">${h3(Promo185.SECTION)}${vis.map(p => promoCard(p)).join('')}</section>` : '';
 }
 function PromoScreen() {
-  const g = Promotions.grouped(PromoData.items, Date.now());
-  // Beta 1.8.6(Q185-01): 실패는 목록 영역 안 문구 + 48dp [다시 시도](별도 화면 없음). 0건 확인일은 날짜 있을 때만
-  const b = !PromoData.ready || PromoData.loading ? `<p class="promoloading">${Promo185.LOADING}</p>`
-    : PromoData.failed ? `<div class="empty promofail">${emptyCup()}<p class="b" style="margin-top:8px">${Promo185.FAIL}</p><button class="btn sec promoretry" style="min-height:48px;margin-top:8px" data-a="${act(() => { PromoData.load().then(render); render(); })}">${Promo185.RETRY}</button></div>`
-    : !g.length ? `<div class="empty promoempty">${emptyCup()}<p class="b" style="margin-top:8px">${Promo185.EMPTY}</p>${PromoData.checked ? `<p class="sub promochecked">${esc(Promo185.checkedLine(PromoData.checked))}</p>` : ''}</div>`
+  // 1.8.9 r2(ui promo-states-1.8.9r2 §3): 상태 줄 + 카드/빈 안내. 다시 받기 버튼·당겨서 새로고침 없음(받기는 실행 시 1회)
+  const g = Promotions.grouped(PromoData.items, Date.now()); const n = g.reduce((k, [, ps]) => k + ps.length, 0);
+  const st = PromoStatus.of(PromoData, n);
+  const line = st.line ? `<p class="promostatus ${st.warn ? 'warn' : ''}">${esc(st.line)}</p>` : '';
+  const b = st.body === 'loading' ? `<p class="promoloading">${Promo185.LOADING}</p>`
+    : st.body === 'none' ? `<div class="promoempty promonone"><p class="b t16">${PromoStatus.NONE_T}</p><p class="sub">${PromoStatus.NONE_S}</p></div>`
+    : st.body === 'empty' ? `<div class="promoempty"><p class="b t16">${PromoStatus.EMPTY_T}</p><p class="sub">${PromoStatus.EMPTY_S}</p></div>`
     : g.map(([br, ps]) => `<p class="b promobrand" style="font-weight:800;padding-top:14px">${esc(br)}</p>` + ps.map(p => promoCard(p)).join('')).join('');
-  return topBar(Promo185.SECTION, { sub: '브랜드 공식 홈페이지 기준 · 추천 순위와 무관', onBack: back }) + `<div class="scroll">${p9Button(() => go('brandlinks'))}${b}${sub('확인한 공식 출처만 실어요. 끝난 행사는 자동으로 숨겨요. 매장별로 참여가 다를 수 있어요.')}</div>`;
+  return topBar(Promo185.SECTION, { sub: '브랜드 공식 홈페이지 기준 · 추천 순위와 무관', onBack: back }) + `<div class="scroll">${line}${p9Button(() => go('brandlinks'))}${b}${sub('확인한 공식 출처만 실어요. 끝난 행사는 자동으로 숨겨요. 매장별로 참여가 다를 수 있어요.')}</div>`;
 }
 function seasonSection(brand) {
   const vis = Seasonal.visible(Data182.SEASON.filter(x => x.brand === brand)); if (!vis.length) return '';
