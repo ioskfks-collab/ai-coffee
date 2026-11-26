@@ -304,7 +304,7 @@ html.big .trow.sz { flex-direction: column; align-items: stretch; } html.big .tr
 .srcline .badge { vertical-align: middle; }
 ul.changelog { padding-left: 20px; margin: 8px 0 12px; } ul.changelog li { margin: 6px 0; }
 .mapwrap { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 12px; display: flex; flex-direction: column; }
-.mapbox { position: relative; flex: 1; min-height: 340px; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: #F3ECE2; touch-action: none; }
+.mapbox { isolation: isolate; position: relative; flex: 1; min-height: 340px; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: #F3ECE2; touch-action: none; }
 svg.map { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
 svg.map .mfill { fill: #F3ECE2; }
 svg.map .mring { fill: none; stroke: #CDBBA7; stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-dasharray: 4 4; }
@@ -342,3 +342,22 @@ svg.map .mk text { fill: #fff; text-anchor: middle; font-weight: 800; font-famil
 .pc-foot{margin-top:4px}
 .pc-foot .pc-period,.pc-foot .pc-src,.pc-foot .pc-checked{font-size:14px;color:#6B5546;word-break:keep-all;margin:2px 0}
 .pc-scope-line{margin-top:6px}
+
+/* 1.8.9 r4: OpenStreetMap(Leaflet) 지도 — 마커·링은 약도와 같은 모양, 컨트롤·범례는 지도 위(z-index) */
+.osmhost { position: absolute; inset: 0; z-index: 0; }
+.osmmap { position: absolute; inset: 0; background: #E8E0D5; font-family: inherit; touch-action: none; }
+.mapbox.osm .mapctl, .mapbox.osm .maplegend, .mapbox.osm .mapnorth, .mapbox.osm .mapcard, .mapbox .mapfallback { z-index: 5; }
+.mapbox.osm .maplegend { bottom: 28px; pointer-events: none; }
+.mapbox .mapfallback { position: absolute; top: 10px; left: 56px; right: 64px; background: #FFF4DC; border-radius: 10px; padding: 5px 10px; font-size: var(--fs-sub); font-weight: 700; color: var(--text); box-shadow: 0 1px 3px rgba(43,29,20,.2); }
+.mapbox .mapcard { z-index: 5; }
+.osmmap .leaflet-control-attribution { font-size: 12px; line-height: 18px; color: var(--text); background: rgba(255,255,255,.9); padding: 1px 6px; border-radius: 6px 0 0 0; }
+.osmmap .leaflet-control-attribution a { color: var(--primary); text-decoration: underline; }
+.osmmk { border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.osmmk i { box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--primary); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(43,29,20,.45); color: #fff; font-style: normal; }
+.osmmk i b { font-weight: 800; font-size: 11px; line-height: 1; }
+.osmmk.n i { width: 16px; height: 16px; background: #fff; border: 2px solid var(--secondary); }
+.osmmk.sel i { background: var(--caramel); width: 30px; height: 30px; border: 3px solid #fff; }
+.osmmk:focus-visible i { outline: 3px solid #2F6FDB; outline-offset: 2px; }
+.osmme i { box-sizing: border-box; display: block; width: 18px; height: 18px; border-radius: 50%; background: #2F6FDB; border: 2.5px solid #fff; box-shadow: 0 0 0 1px rgba(47,111,219,.5); }
+.osmme.area i { width: 14px; height: 14px; border-radius: 2px; transform: rotate(45deg); margin: 1px; }
+.osmlab span { position: absolute; transform: translate(-50%, -50%); background: rgba(255,255,255,.8); border-radius: 4px; padding: 0 4px; font-size: 11px; line-height: 16px; color: #5E4B3C; white-space: nowrap; pointer-events: none; }

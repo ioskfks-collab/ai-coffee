@@ -14,7 +14,8 @@ export const APP_TITLE = 'AI CAFE BETA ' + VERSION;
 export const CHANGELOG_189 = ['앱 아이콘을 새 AI CAFE 로고로 바꿨어요.',
   '자연어 검색: "근처 3천원 이하 아이스 아메리카노 가성비"처럼 쓰면 메뉴·온도·사이즈·가격·거리·정렬·브랜드 조건으로 바꿔 줘요. 기기 안에서 도는 규칙 기반 분석이에요(AI 모델·외부 서버를 쓰지 않아요). 검색어는 저장하거나 보내지 않아요.',
   '데이터가 없는 조건(분위기·시설·영업시간·지원하지 않는 메뉴 등)은 "데이터 없음 — 반영 안 함"으로 보여 주고 결과에는 반영하지 않아요.',
-  '앱 안 약도: 결과 매장을 내 위치 기준 약도에 표시해요. 매장 좌표만 그리고 도로·건물은 없어요(외부 지도 서버 요청 없음). 길찾기는 지금처럼 지도 앱으로 열어요.',
+  '앱 안 약도: 결과 매장을 내 위치 기준 약도에 표시해요. 매장 좌표만 그리고 도로·건물은 없어요. 길찾기는 지금처럼 지도 앱으로 열어요.',
+  "지도: 주변 화면의 '지도'가 이제 OpenStreetMap 실제 도로 지도예요. 매장 마커(순위 번호)·가격 정보 없음 마커·내 위치·반경 250m/500m/1km 링·＋－◎ 버튼은 그대로예요. 지도 이미지는 OpenStreetMap 서버(tile.openstreetmap.org)에서 받고(보는 지역의 타일 번호와 기기 IP가 전달돼요), 지도를 받지 못하거나 오프라인이면 기존 약도로 보여 줘요.",
   '가격마다 "출처 · 확인 날짜"를 표시해요. 확인 날짜가 없는 예시 가격은 "확인일 없음"으로 적고, 60일이 지난 가격에는 "오래된 가격" 배지를 붙여요.',
   '필터에 거리(반경 100m~1km)·사이즈(가장 작은/큰 사이즈)·제외 브랜드 조건을 더했어요.',
   '공식 프로모션: 앱을 열 때 같은 서버의 프로모션 목록(promos.json)을 한 번 받아 와요. 목록은 브랜드 공식 이벤트 페이지에서 기간·출처가 글자로 적힌 것만 모은 거예요. 받지 못하면 마지막으로 받은 목록을 보여 주고, 기간이 끝난 프로모션은 자동으로 숨겨요(한국 시간 종료일 23:59까지 표시).'];
@@ -170,7 +171,7 @@ const A = {
     S.homeCat = 'near'; UI.map.sel = null; UI.scrollReset = true; try { document.activeElement && document.activeElement.blur(); } catch { } render();
   },
   nlClear() { UI.nl = null; UI.nlText = ''; mut(() => { S.filter = defaultFilter(); S.inc = defaultInc(); }); },
-  setView(v) { UI.view = v; UI.map = { z: 1, cx: 0, cy: 0, sel: null }; UI.scrollReset = true; render(); },
+  setView(v) { UI.view = v; UI.map = { z: 1, cx: 0, cy: 0, sel: null, tilesFailed: false }; OSM.ok = 0; OSM.err = 0; OSM.t0 = 0; UI.scrollReset = true; render(); },
   relax(arg) {
     const f = S.filter;
     if (arg === 'incVol') { S.inc = { ...S.inc, NO_VOL: true }; render(); return; }
@@ -469,8 +470,11 @@ function NearScreen() {
   return head + body + foot;
 }
 
-// ---------- Beta 1.8.9 앱 안 약도(청구항 6): 매장 좌표만 SVG로. 지도 타일·외부 요청 없음(CSP 'self' 유지) ----------
-export const MAP_NOTE = '약도: 기기에 저장된 매장 좌표만 표시 · 도로·건물 없음 · 외부 지도 서버 요청 없음 · 실제 길은 지도 앱에서';
+// ---------- Beta 1.8.9 앱 안 약도(청구항 6): 매장 좌표만 SVG로 → r4: 기본은 OpenStreetMap 타일 지도(Leaflet 번들), 타일을 못 받으면 이 약도로 대체 ----------
+export const MAP_NOTE = '약도: 기기에 저장된 매장 좌표만 표시 · 도로·건물 없음 · 실제 길은 지도 앱에서';
+export const MAP_NOTE_OSM = '지도: © OpenStreetMap contributors · 지도 이미지는 OpenStreetMap 서버(tile.openstreetmap.org)에서 받아요. 이때 보는 지역의 타일 번호와 기기 IP가 전달돼요 · 실제 길은 지도 앱에서';
+export const MAP_NOTE_FALLBACK = "약도: 지도 이미지를 받지 못해 약도로 보여 드려요 · 매장 좌표만 표시 · 도로·건물 없음 · '목록'을 눌렀다가 '지도'를 다시 누르면 지도를 다시 받아요";
+export const MAP_FALLBACK_BANNER = '지도 이미지를 받지 못해 약도로 보여 드려요';
 const mapPts = (ns, L) => {
   const db = EN.db, r = ns.r; const kx = Geo.M_PER_DEG * Math.cos(L.lat * Math.PI / 180), ky = Geo.M_PER_DEG;
   const xy = i => [(db.lng(i) - L.lng) * kx, -(db.lat(i) - L.lat) * ky];
@@ -480,6 +484,58 @@ const mapPts = (ns, L) => {
   else { r.main.forEach((e, n) => add(e, n + 1, 'p')); r.noPriceList.forEach(e => add(e, 0, 'n')); for (const k of Reasons) if (ns.inc[k]) r.groups[k].forEach(e => add(e, 0, 'n')); }
   return { res, xy };
 };
+
+// ---------- 1.8.9 r4: OpenStreetMap 지도(Leaflet 1.9.4 로컬 번들, CDN 없음) ----------
+// 타일 https://tile.openstreetmap.org/{z}/{x}/{y}.png — CSP는 img-src에 이 호스트 하나만 추가. 출처 '© OpenStreetMap contributors' 표시.
+// 타일 요청은 서비스 워커를 거치지 않고(다른 출처) 브라우저 HTTP 캐시(서버 캐시 헤더)를 씀. 미리받기·일괄받기 없음(화면에 보이는 타일만).
+export const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+export const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors';
+export const OSM = { map: null, el: null, tiles: null, layers: null, key: null, ok: 0, err: 0, t0: 0, last: null, lib: null, timer: 0, FAIL_TILES: 4, FAIL_MS: 12000 };
+function loadLeaflet() {
+  if (window.L && window.L.map) return Promise.resolve(true);
+  if (!OSM.lib) OSM.lib = new Promise(res => { const sc = document.createElement('script'); sc.src = 'vendor/leaflet/leaflet.js'; sc.onload = () => res(!!(window.L && window.L.map)); sc.onerror = () => { OSM.lib = null; res(false); }; document.head.appendChild(sc); });
+  return OSM.lib;
+}
+function osmFail() { if (UI.view !== 'map' || UI.map.tilesFailed) return; UI.map.tilesFailed = true; render(); }
+const osmOff = () => !!window.__AIC_NO_OSM; // 시험용: 지도 타일을 끄고 약도만(정상 사용에서는 설정되지 않음)
+const osmFailed = () => !osmOff() && (UI.map.tilesFailed || navigator.onLine === false); // 타일을 못 받았거나 기기가 오프라인이면 약도 + 안내
+const osmTilesWanted = () => !osmOff() && !osmFailed();
+function syncOsm() {
+  const P = OSM.last, Lf = window.L; const host = P && root.querySelector('#osmHost'); if (!host || !Lf || !Lf.map || UI.view !== 'map' || UI.map.tilesFailed) return;
+  if (!OSM.map) {
+    OSM.el = document.createElement('div'); OSM.el.className = 'osmmap'; host.appendChild(OSM.el);
+    OSM.map = Lf.map(OSM.el, { zoomControl: false, minZoom: 3, maxZoom: 19, zoomSnap: 0.25, preferCanvas: true, attributionControl: true });
+    OSM.map.attributionControl.setPrefix(false);
+    OSM.tiles = Lf.tileLayer(OSM_TILE_URL, { maxZoom: 19, maxNativeZoom: 19, attribution: OSM_ATTR, referrerPolicy: 'strict-origin', crossOrigin: false, keepBuffer: 0 }).addTo(OSM.map);
+    OSM.tiles.on('tileload', () => { OSM.ok++; });
+    OSM.tiles.on('tileerror', () => { OSM.err++; if (OSM.ok === 0 && OSM.err >= OSM.FAIL_TILES) osmFail(); });
+    OSM.layers = Lf.layerGroup().addTo(OSM.map);
+  } else if (OSM.el.parentNode !== host) host.appendChild(OSM.el);
+  if (!OSM.t0) { OSM.t0 = Date.now(); clearTimeout(OSM.timer); OSM.timer = setTimeout(() => { if (OSM.ok === 0) osmFail(); }, OSM.FAIL_MS); }
+  const m = OSM.map; m.invalidateSize({ animate: false });
+  const ky = Geo.M_PER_DEG, kx = Geo.M_PER_DEG * Math.cos(P.lat * Math.PI / 180), me = Lf.latLng(P.lat, P.lng);
+  if (OSM.key !== P.key) { OSM.key = P.key; m.fitBounds(me.toBounds(P.R * 2.16), { animate: false }); } // 위치·반경이 바뀔 때만 처음 화면으로(마커 탭으로 다시 그릴 땐 보던 곳 유지)
+  OSM.layers.clearLayers();
+  const add = l => { l.addTo(OSM.layers); return l; };
+  P.rings.forEach(r => { add(Lf.circle(me, { radius: r, color: '#8A7563', weight: 1.8, dashArray: '8 6', fill: false, interactive: false }));
+    add(Lf.marker(Lf.latLng(P.lat + r * 0.707 / ky, P.lng + r * 0.707 / kx), { icon: Lf.divIcon({ className: 'osmlab', html: `<span>${r >= 1000 ? r / 1000 + 'km' : r + 'm'}</span>`, iconSize: [0, 0] }), interactive: false, keyboard: false })); });
+  P.bg.forEach(([la, ln]) => add(Lf.circleMarker([la, ln], { radius: 2.6, stroke: false, fillColor: '#BBA894', fillOpacity: 0.6, interactive: false })));
+  if (P.manual) add(Lf.marker(me, { icon: Lf.divIcon({ className: 'osmme area', html: '<i></i>', iconSize: [16, 16] }), zIndexOffset: 5e7, interactive: false, keyboard: false }));
+  else { if (P.acc && P.acc < P.R) add(Lf.circle(me, { radius: P.acc, stroke: false, fillColor: '#2F6FDB', fillOpacity: 0.12, interactive: false }));
+    add(Lf.marker(me, { icon: Lf.divIcon({ className: 'osmme', html: '<i></i>', iconSize: [18, 18] }), zIndexOffset: 5e7, interactive: false, keyboard: false })); }
+  P.pts.slice().sort((a, b) => (a.kind === b.kind ? (b.rank || 999) - (a.rank || 999) : a.kind === 'n' ? -1 : 1)).forEach(o => {
+    const sel = P.sel === o.i; const lab = o.rank && o.rank <= 99 ? `<b>${o.rank}</b>` : '';
+    const mk = add(Lf.marker([o.lat, o.lng], { icon: Lf.divIcon({ className: `osmmk ${o.kind}${sel ? ' sel' : ''}`, html: `<i>${lab}</i>`, iconSize: o.kind === 'p' ? [34, 34] : [26, 26] }), zIndexOffset: sel ? 1e8 : (o.rank ? (101 - Math.min(o.rank, 100)) * 1e5 : 0), // 순위 높은 마커가 위(Leaflet z-index = 화면 y + 이 값)
+      keyboard: true, title: o.name + (o.rank ? ` ${o.rank}위` : '') }));
+    mk.on('click', () => { UI.map.sel = o.i; render(); });
+    const el = mk.getElement(); if (el) { el.setAttribute('role', 'button'); el.setAttribute('aria-label', o.name + (o.rank ? ` ${o.rank}위` : '')); }
+  });
+}
+// render() 끝에서 호출: Leaflet 지도는 화면을 다시 그려도 살려 두고(DOM만 새 자리로 옮김) 마커·링만 새로 그림
+function mountOsm() {
+  if (!OSM.last || UI.view !== 'map' || UI.route.split('/')[0] !== 'near' || !root.querySelector('#osmHost')) return;
+  if (window.L && window.L.map) syncOsm(); else loadLeaflet().then(ok => { if (ok) syncOsm(); else osmFail(); });
+}
 function mapView(ns) {
   const L = ref(); const f = ns.filter; const R = ns.r.baseCount === 0 && ns.r.fallback.length ? Math.max(Radius.SEARCH_M, ...ns.r.fallback.map(e => e.d)) : F.radius(f);
   const { res, xy } = mapPts(ns, L); const M = UI.map; const half = R * 1.08 / M.z;
@@ -494,12 +550,25 @@ function mapView(ns) {
   const sel = M.sel != null ? res.find(o => o.e.i === M.sel) : null;
   const card = sel ? `<div class="mapcard">${storeCard(sel.e, sel.rank, ns.r.baseCount === 0, false)}<button class="txtbtn mapclose" data-a="${act(() => { UI.map.sel = null; render(); })}">닫기</button></div>` : '';
   const cnt = res.filter(o => o.kind === 'p').length;
+  const tiles = osmTilesWanted(); OSM.last = null;
+  const btns = (zi, zo, ce) => `<div class="mapctl"><button class="iconbtn" aria-label="확대" data-a="${act(zi)}">＋</button><button class="iconbtn" aria-label="축소" data-a="${act(zo)}">－</button><button class="iconbtn" aria-label="내 위치로" data-a="${act(ce)}">◎</button></div>`;
+  const legend = `<div class="maplegend"><span><i class="lg p"></i>가격 있음(순위)</span><span><i class="lg n"></i>가격 정보 없음</span><span><i class="lg me"></i>${manual() ? '선택 지역 중심' : '내 위치'}</span></div>`;
+  if (tiles) {
+    OSM.last = { key: `${L.lat.toFixed(5)},${L.lng.toFixed(5)},${R}`, lat: L.lat, lng: L.lng, R, acc: L.acc || 0, manual: manual(), sel: M.sel, rings: [250, 500, 1000, 2000, 3000].filter(m => m <= R + 1),
+      pts: res.map(o => ({ i: o.e.i, rank: o.rank, kind: o.kind, name: EN.db.name[o.e.i], lat: EN.db.lat(o.e.i), lng: EN.db.lng(o.e.i) })),
+      bg: Geo.query(EN.db, L, R).filter(h => !res.some(o => o.e.i === h.i)).map(h => [EN.db.lat(h.i), EN.db.lng(h.i)]) };
+    return `<div class="mapbox osm"><div id="osmHost" class="osmhost" role="region" aria-label="결과 매장 지도(OpenStreetMap) · 가격 있는 매장 ${cnt}곳 · 전체 ${res.length}곳"></div>
+    ${btns(() => OSM.map && OSM.map.zoomIn(), () => OSM.map && OSM.map.zoomOut(), () => OSM.map && OSM.map.panTo([L.lat, L.lng]))}
+    <div class="mapnorth" aria-hidden="true">N↑</div>${legend}
+    ${card}</div><p class="sub mapnote">${MAP_NOTE_OSM}</p>`;
+  }
+  const failed = osmFailed(); const fb = failed ? `<div class="mapfallback" role="status">${MAP_FALLBACK_BANNER}</div>` : '';
   return `<div class="mapbox"><svg id="nearMap" class="map" viewBox="${vb.map(v => v.toFixed(1)).join(' ')}" data-r="${R}" role="img" aria-label="결과 매장 약도 · 가격 있는 매장 ${cnt}곳 · 전체 ${res.length}곳">
     <rect x="${-R * 3}" y="${-R * 3}" width="${R * 6}" height="${R * 6}" class="mfill"/>${rings}${bg}${me}${mk}</svg>
-    <div class="mapctl"><button class="iconbtn" aria-label="확대" data-a="${act(() => { UI.map.z = Math.min(8, M.z * 2); render(); })}">＋</button><button class="iconbtn" aria-label="축소" data-a="${act(() => { UI.map.z = Math.max(1, M.z / 2); if (UI.map.z === 1) { UI.map.cx = 0; UI.map.cy = 0; } render(); })}">－</button><button class="iconbtn" aria-label="내 위치로" data-a="${act(() => { UI.map.cx = 0; UI.map.cy = 0; render(); })}">◎</button></div>
-    <div class="mapnorth" aria-hidden="true">N↑</div><div class="mapscale" aria-label="축척 ${scaleM}m"><i style="width:${(scaleM / px).toFixed(0)}px"></i><span>${scaleM >= 1000 ? scaleM / 1000 + 'km' : scaleM + 'm'}</span></div>
-    <div class="maplegend"><span><i class="lg p"></i>가격 있음(순위)</span><span><i class="lg n"></i>가격 정보 없음</span><span><i class="lg me"></i>${manual() ? '선택 지역 중심' : '내 위치'}</span></div>
-    ${card}</div><p class="sub mapnote">${MAP_NOTE}</p>`;
+    ${btns(() => { UI.map.z = Math.min(8, M.z * 2); render(); }, () => { UI.map.z = Math.max(1, M.z / 2); if (UI.map.z === 1) { UI.map.cx = 0; UI.map.cy = 0; } render(); }, () => { UI.map.cx = 0; UI.map.cy = 0; render(); })}
+    <div class="mapnorth" aria-hidden="true">N↑</div><div class="mapscale" aria-label="축척 ${scaleM}m"><i style="width:${(scaleM / px).toFixed(0)}px"></i><span>${scaleM >= 1000 ? scaleM / 1000 + 'km' : scaleM + 'm'}</span></div>${fb}
+    ${legend}
+    ${card}</div><p class="sub mapnote">${failed ? MAP_NOTE_FALLBACK : MAP_NOTE}</p>`;
 }
 
 // ---------- 매장 상세 ----------
@@ -632,7 +701,7 @@ function FavScreen() {
 
 // ---------- 정보·문서 ----------
 const cstate = c => ({ agree: '동의', deny: '동의 안 함', withdrawn: '철회함' }[c.loc] || '-') + (c.age === 'u14' ? ' (만 14세 미만)' : '');
-const MAPTXT = "앱 안 약도(1.8.9)는 기기에 저장된 매장 좌표만 그려요. 도로·건물 지도는 없고 외부 지도 서버에 요청하지 않아요. '길 안내'를 누르면 고른 외부 지도 앱(네이버 지도·카카오맵·TMAP·Google 지도 등)을 열고 매장 위치(좌표·상호)만 전달해요. 내 위치 좌표는 보내지 않아요.";
+const MAPTXT = "주변 화면의 '지도'는 OpenStreetMap 지도예요(© OpenStreetMap contributors). 지도를 보면 지도 이미지(타일)를 OpenStreetMap 서버(tile.openstreetmap.org)에서 받는데, 이때 보는 지역의 타일 번호와 기기 IP 주소가 OpenStreetMap 쪽에 전달돼요(정확한 내 위치 좌표는 보내지 않아요). 지도 이미지를 받지 못하면 매장 좌표만 그린 약도로 보여 줘요. '길 안내'를 누르면 고른 외부 지도 앱(네이버 지도·카카오맵·TMAP·Google 지도 등)을 열고 매장 위치(좌표·상호)만 전달해요. 내 위치 좌표는 보내지 않아요.";
 const DOCS = {
   terms: ['서비스 이용약관', '문안 확정 전 · 정식 출시 전 변호사 검토\n\n· 로그인 없이 이용, 익명 기기 ID 사용\n· 이용자 별점·제보의 이용 허락 범위 (문안 자리)\n· 다른 서비스에서 복사한 정보 제보 금지, 자체 DB 무단 수집 금지\n· 권리침해 신고 → 소명 확인 → 정정 또는 30일 이내 임시조치 → 통지 → 앱 안 공시(정보통신망법 제44조의2)\n· 포괄 면책 조항을 두지 않아요'],
   lbs: ['위치기반서비스 이용약관', `문안 확정 전\n\n· 개인위치정보는 기기 안에서 거리 계산에만 쓰고 서버·지도 앱·광고로 보내거나 저장하지 않아요\n· ${MAPTXT}\n· 동의는 선택이며 언제든 철회할 수 있어요\n· 감독기관: 방송미디어통신위원회`],
@@ -678,10 +747,10 @@ function DocScreen(name) {
 function C01() {
   return topBar('AI CAFE') + `<div class="scroll">${h2('앱 접근권한 안내')}<p class="b">필수 권한: 없음</p><p>선택 권한: 위치(정밀) — 주변 1km 매장 거리 계산용</p>
     ${sub('허용하지 않아도 시·구를 직접 골라 그 지역 중심 기준으로 매장을 찾을 수 있고, 메뉴 비교·즐겨찾기도 이용할 수 있어요. 주소 검색은 없어요.')}
-    ${box(`<p class="pre">· 위치는 기기 안에서 거리 계산에만 쓰고 앱 밖(서버·지도 앱·광고)으로 보내지 않아요.
+    ${box(`<p class="pre">· 위치 좌표는 기기 안에서 거리 계산에만 쓰고 앱 밖(서버·지도 앱·광고)으로 보내지 않아요(지도 이미지를 받을 때는 보는 지역의 타일 번호만 전달돼요).
 · ${MAPTXT}
 · 매장 정보는 전국 파일 하나를 처음 한 번 받아 기기에 저장하고, 기기 안에서 계산해요. 어느 위치에서든 같은 파일을 받아요.
-· 앱 파일과 전국 매장 파일을 받는 것 말고는 외부로 요청을 보내지 않아요.
+· 앱 파일·전국 매장 파일·프로모션 목록 파일을 받는 것 말고는, '지도'를 볼 때 OpenStreetMap 지도 이미지를 받는 요청만 보내요.
 · 위치 권한은 언제든 iPhone 설정에서 끌 수 있어요.</p>`)}
     ${h3('약관·정책 보기')}${listRow('서비스 이용약관 (문안 확정 전)', () => go('doc/terms'))}${listRow('개인정보처리방침 (문안 확정 전)', () => go('doc/privacy'))}${listRow('별점 운영정책', () => go('doc/policy'))}
     <p class="sub pre">수집: 익명 기기 ID, 별점, 제보·신고 내용, 제출 날짜 · 수집 안 함: 이름·전화번호·이메일·광고 ID·위치 좌표
@@ -930,7 +999,7 @@ export function render() {
   const ns = document.querySelector('.sheet .sc'); if (ns && UI.sheetScroll === 0) { UI.sheetScroll = 1; } else if (ns) ns.scrollTop = sheetTop;
   if (focusIn) { const el = root.querySelector(`[data-in="${focusIn}"]`); if (el) { el.focus(); const v = el.value; try { el.setSelectionRange(v.length, v.length); } catch { } } }
   UI.scrollReset = false;
-  foldCheck();
+  foldCheck(); mountOsm();
   if (tabs && UI.maybeA2hs) { UI.maybeA2hs = false; maybeA2hs(); }
   if (!BOOT.splashGone && (S.ready || S.dbError)) hideSplash(); // 데이터 준비 끝 → 바로 메인(인위 지연 없음)
   if (!BOOT.promoDecided && BOOT.splashGone && S.loaded) queueMicrotask(maybePromoNotice);

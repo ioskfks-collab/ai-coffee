@@ -1,5 +1,11 @@
 AI Coffee Web — 릴리스 정보
 
+버전: Beta 1.8.9 r4 (Android versionCode 23, versionName 'Beta 1.8.9') — 주변 화면 '지도'를 OpenStreetMap 실제 도로 지도로 교체(Leaflet 1.9.4 로컬 번들 vendor/leaflet, CDN 없음). 타일 https://tile.openstreetmap.org/{z}/{x}/{y}.png, 출처 '© OpenStreetMap contributors'(저작권 링크), 화면에 보이는 타일만(미리받기·일괄받기 없음), 타일 요청 Referer는 출처(origin)만.
+  CSP: img-src에 https://tile.openstreetmap.org 하나만 추가(connect-src·script-src 그대로). 서비스 워커 캐시 aic-shell-beta-1.8.9-r4(leaflet 파일 셸 포함, 타일은 다른 출처라 서비스 워커를 거치지 않음 → 브라우저 HTTP 캐시).
+  마커(순위 번호·속 빈 가격 없음)·내 위치(파란 점)·반경 250m/500m/1km 링·＋－◎·범례·길 안내(외부 지도 앱)·필터·정렬·목록은 그대로. 마커를 누르면 지금과 같은 매장 카드.
+  타일을 못 받거나(연속 4장 실패·12초 무응답) 오프라인이면 기존 약도(SVG)로 대체 + 짧은 안내. '외부 지도 서버 요청 없음' 문구는 사실에 맞게 교체(정보 화면·동의 문구 포함).
+  새 시험: qa/1.8.9r4/web-r4-map-qa.mjs, 스크린샷 qa/1.8.9r4/shots/. 약도 흐름 시험은 window.__AIC_NO_OSM(시험용 끄기)로 유지: qa/1.8.9r4/web-qa-regress.mjs.
+
 버전: Beta 1.8.9 r2 (Android versionCode 21, versionName 'Beta 1.8.9') — 공식 프로모션 목록 자동 갱신: 앱 실행 시 같은 Pages 출처 data/promos.json 1회 받기(시간 제한 6초·재시도 없음)·성공본만 저장·실패 시 저장본/번들 표시(상태 줄)·종료일 다음 날 00:00(KST)부터 숨김·카드 아래 '기간 / 출처 + [원문 보기] / 확인 시각'
 빌드 날짜: 2026-11-26 KST · 서비스 워커 캐시 aic-shell-beta-1.8.9-r2 (promos.json은 SW 캐시를 거치지 않음) · CSP 그대로(connect-src 'self')
 기획 백업(build-dist): backup/plan-1.8.6.build-1892.md md5 d704a8c57d9ac995b01d95986c0402f9 (2026-11-26 10:45 KST)
